@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Text.RegularExpressions;
+using W65C02S.Bus;
+using W65C02S.CPU;
 using W65C02S.Engine;
+using W65C02S.RAM;
+using W65C02S.ROM;
 
 namespace W65C02S.Console
 {
@@ -17,38 +21,50 @@ namespace W65C02S.Console
         private static bool binaryFileLoaded = false;
 
         private static Emulator emulator;
+        private static Bus.Bus bus;
+        private static ROM32K rom;
+        private static RAM32K ram;
+
         static void Main(string[] args)
         {
             System.Console.SetWindowSize(maxColumns, maxRows);
             System.Console.SetBufferSize(maxColumns, maxRows);
             System.Console.Title = "W65C02 Emulator";
             System.Console.ForegroundColor = ConsoleColor.Green;
-            
 
-            emulator = new Emulator();
-            emulator.OnAddressChanged += OnAddressChanged;
-            emulator.OnInstructionExecuted += OnInstructionExecuted;
-            emulator.OnError += OnError;
+            using (bus = new Bus.Bus())
+            {
+                emulator = new Emulator(bus);
+                rom = new ROM32K(bus, 0x8000);
+                ram = new RAM32K(bus, 0);
 
-            System.Console.CursorVisible = false;
-            DisplayMainMenu();
+                bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
+                bus.Subscribe<InstructionDisplayEventArg>(OnInstructionExecuted);
+                bus.Subscribe< ExceptionEventArg>(OnError);
 
-            System.Console.Clear();
+                System.Console.CursorVisible = false;
+                DisplayMainMenu();
 
-            emulator.OnAddressChanged -= OnAddressChanged;
-            emulator.OnInstructionExecuted -= OnInstructionExecuted;
-            emulator.OnError -= OnError;
+                System.Console.Clear();
+
+                bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+                bus.UnSubscribe<InstructionDisplayEventArg>(OnInstructionExecuted);
+                bus.UnSubscribe<ExceptionEventArg>(OnError);
+
+                emulator.Dispose();
+                bus.Dispose();
+            }
 
             System.Console.WriteLine("Bye!");
         }
 
-        private static void OnInstructionExecuted(object sender, CPU.InstructionDisplayEventArg e)
+        private static void OnInstructionExecuted(InstructionDisplayEventArg e)
         {
             ShowLastInstruction(e.DecodedInstruction, e.RawData);
-            DisplayRegisters(e.A_Reg, e.X_Reg, e.Y_Reg, e.ST_Reg, e.SP, e.PC, e.ClockTicks);
+            DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
         }
 
-        private static void OnError(object sender, CPU.ExceptionEventArg e)
+        private static void OnError(ExceptionEventArg e)
         {
             DisplayError(e.ErrorMessage);
         }
@@ -72,13 +88,10 @@ namespace W65C02S.Console
             System.Console.Write("".PadRight(100), ' ');
             System.Console.SetCursorPosition(currLeft, currTop);
         }
-        private static void OnAddressChanged(object sender, CPU.AddressBusEventArgs e)
+        private static void OnAddressChanged(AddressBusEventArgs arg)
         {
-            UpdateAddress(e.Address);
+            UpdateAddress(arg.Address);
         }
-
-
-
 
         private static void DisplayMainMenu()
         {
@@ -91,10 +104,11 @@ namespace W65C02S.Console
             else
                 System.Console.WriteLine($"    F1 = Load Binary file into ROM".PadRight(colWidth));
 
-            System.Console.WriteLine("    F2 = Monitor".PadRight(colWidth));
-            System.Console.WriteLine("    F5 = Start Emulation".PadRight(colWidth));
-            System.Console.WriteLine("   F12 = Reset System".PadRight(colWidth));
-            
+            System.Console.WriteLine("    F2 = System Monitor".PadRight(colWidth));
+            System.Console.WriteLine("    F5 = Start Emulator".PadRight(colWidth));
+            //System.Console.WriteLine("   F12 = Reset System".PadRight(colWidth));
+            System.Console.WriteLine();
+            System.Console.WriteLine();
             System.Console.WriteLine("     X = Quit".PadRight(colWidth));
             System.Console.WriteLine("".PadRight(maxColumns-1, '-'));
             System.Console.SetCursorPosition(0, clientAreaStart);
@@ -130,11 +144,11 @@ namespace W65C02S.Console
                     goto Reset;
                 }
             }
-            if (input.Key == ConsoleKey.F12)
-            {
-                binaryFileLoaded = false;
-                goto Reset;
-            }
+            //if (input.Key == ConsoleKey.F12)
+            //{
+            //    binaryFileLoaded = false;
+            //    goto Reset;
+            //}
             if (input.Key == ConsoleKey.X)
             {
                 return;
@@ -210,6 +224,7 @@ namespace W65C02S.Console
             System.Console.WriteLine("    F1 = View Memory Location");
             System.Console.WriteLine("    F2 = View Memory Row");
             System.Console.WriteLine("    F3 = View Memory Page");
+            System.Console.WriteLine("    F4 = Edit Memory Location");
             System.Console.WriteLine("   Esc = Return to main menu");
             System.Console.WriteLine();
             System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
@@ -238,6 +253,12 @@ namespace W65C02S.Console
                 Monitor_DisplayPage();
                 goto ReStart;
             }
+            if (input.Key == ConsoleKey.F4)
+            {
+                ClearClientArea(true);
+                Monitor_EditLocation();
+                goto ReStart;
+            }
             if (input.Key == ConsoleKey.Escape)
             {
                 return;
@@ -249,7 +270,7 @@ namespace W65C02S.Console
         private static void Monitor_DisplayHeader(int left = 0, int topOffset = 0)
         {
             System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
-            System.Console.Write("Address | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+            System.Console.Write("Address | -0 -1 -2 -3 -4 -5 -6 -7 -8 -9 -A -B -C -D -E -F");
             System.Console.CursorLeft = left;
             System.Console.CursorTop++;
             System.Console.Write("--------|-------------------------------------------------");
@@ -259,7 +280,7 @@ namespace W65C02S.Console
         private static void Monitor_DisplayLocation(int left = 0, int topOffSet = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{4}$";
-            var inputDisplay = "Enter address [AFB9]: >$";
+            var inputDisplay = "View address location [AFB9]: >$";
         Start:
             System.Console.CursorVisible = true;
             System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
@@ -282,27 +303,27 @@ namespace W65C02S.Console
 
             ClearError();
             Monitor_DisplayHeader(left, topOffSet);
-            var location = int.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
             var requestedLoc = int.Parse(orgLocation, System.Globalization.NumberStyles.HexNumber);
 
             System.Console.CursorLeft = left;
             System.Console.Write($"${location:X4}   : ");
-            for (int index = location; index < location + 16; index++)
+            for (ushort index = location; index < location + 16; index++)
             {
                 if(index == requestedLoc)
                 {
                     System.Console.ForegroundColor = ConsoleColor.Yellow;
-                    System.Console.Write($"{emulator.Ram[index]:X2} ");
+                    System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
                     System.Console.ForegroundColor = ConsoleColor.Green;
                 }
                 else
-                    System.Console.Write($"{emulator.Ram[index]:X2} ");
+                    System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
             }
         }
         private static void Monitor_DisplayRow(int left = 0, int topOffset = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{4}$";
-            var inputDisplay = "Enter address [AFB9]: >$";
+            var inputDisplay = "View address row [AFB9]: >$";
         Start:
             System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
@@ -322,20 +343,20 @@ namespace W65C02S.Console
 
             ClearError();
             Monitor_DisplayHeader(left, topOffset);
-            var location = int.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
             System.Console.CursorLeft = left;
             System.Console.Write($"${location:X4}   : ");
             System.Console.ForegroundColor = ConsoleColor.Yellow;
-            for (int index = location; index < location + 16; index++)
+            for (ushort index = location; index < location + 16; index++)
             {
-                System.Console.Write($"{emulator.Ram[index]:X2} ");
+                System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
             }
             System.Console.ForegroundColor = ConsoleColor.Green;
         }
         private static void Monitor_DisplayPage(int left = 0, int topOffset = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{2}$";
-            var inputDisplay = "Enter page [AF]: >$";
+            var inputDisplay = "View page [AF]: >$";
         Start:
             System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
@@ -359,14 +380,14 @@ namespace W65C02S.Console
 
             var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
             System.Console.CursorLeft = left;
-            for ( int index = location ; index < location + 256; index += 16)
+            for ( ushort index = location ; index < location + 256; index += 16)
             {
                 System.Console.Write($"${index:X4}   : ");
                 System.Console.ForegroundColor = ConsoleColor.Yellow;
 
-                for (int col = index; col < (index + 16); col++)
+                for (ushort col = index; col < (index + 16); col++)
                 {
-                    System.Console.Write($"{emulator.Ram[col]:X2} ");
+                    System.Console.Write($"{emulator.ReadMemoryLocation(col):X2} ");
                 }
 
                 System.Console.ForegroundColor = ConsoleColor.Green;
@@ -377,7 +398,7 @@ namespace W65C02S.Console
         private static void Monitor_EditLocation(int left = 0, int topOffSet = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{4}$";
-            var inputDisplay = "Enter address [AFB9]: >$";
+            var inputDisplay = "Edit address location [AFB9]: >$";
         Start:
             System.Console.CursorVisible = true;
             System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
@@ -400,23 +421,23 @@ namespace W65C02S.Console
 
             ClearError();
             Monitor_DisplayHeader(left, topOffSet);
-            var location = int.Parse(input, System.Globalization.NumberStyles.HexNumber);
-            var requestedLoc = int.Parse(orgLocation, System.Globalization.NumberStyles.HexNumber);
+            var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            var requestedLoc = ushort.Parse(orgLocation, System.Globalization.NumberStyles.HexNumber);
 
             System.Console.CursorLeft = left;
             System.Console.Write($"${location:X4}   : ");
             var editIndex = 0;
-            for (int index = location; index < location + 16; index++)
+            for (ushort index = location; index < location + 16; index++)
             {
                 if (index == requestedLoc)
                 {
                     editIndex = System.Console.CursorLeft;
                     System.Console.ForegroundColor = ConsoleColor.Yellow;
-                    System.Console.Write($"{emulator.Ram[index]:X2} ");
+                    System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
                     System.Console.ForegroundColor = ConsoleColor.Green;
                 }
                 else
-                    System.Console.Write($"{emulator.Ram[index]:X2} ");
+                    System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
             }
 
 
@@ -445,7 +466,7 @@ namespace W65C02S.Console
 
             System.Console.CursorVisible = false;
             var newVal = byte.Parse(val, System.Globalization.NumberStyles.HexNumber);
-            emulator.Ram[requestedLoc] = newVal;
+            emulator.WriteMemoryLocation(requestedLoc, newVal);
         }
 
         private static void DisplayMenu_Emulator()
@@ -456,10 +477,10 @@ namespace W65C02S.Console
             System.Console.Clear();
             CreateSubMenuHeading("Emulator");
 
-            System.Console.SetCursorPosition(leftCol, 1); System.Console.Write("    F5 = Run");
+            System.Console.SetCursorPosition(leftCol, 1); System.Console.Write("    F5 = Run / Break");
             System.Console.SetCursorPosition(leftCol, 2); System.Console.Write("    F9 = Add Breakpoint");
             System.Console.SetCursorPosition(leftCol, 3); System.Console.Write("   F10 = Step next Instruction");
-            System.Console.SetCursorPosition(leftCol ,4); System.Console.Write("   F12 = ");
+            System.Console.SetCursorPosition(leftCol ,4); System.Console.Write("   F12 = Reset CPU");
             System.Console.SetCursorPosition(leftCol, 5); System.Console.Write("   Esc = Return to main menu");
 
             System.Console.SetCursorPosition(rightCol, 1); System.Console.Write("F1 = View Memory Location");
@@ -467,7 +488,7 @@ namespace W65C02S.Console
             System.Console.SetCursorPosition(rightCol, 3); System.Console.Write("F3 = View Memory Page");
             System.Console.SetCursorPosition(rightCol, 4); System.Console.Write("F4 = Edit Memory Location");
 
-
+        Reset:
             System.Console.SetCursorPosition(leftCol, clientAreaStart-1);
             System.Console.Write("".PadRight(maxColumns, '-'));
             System.Console.SetCursorPosition(leftCol, clientAreaStart);
@@ -516,7 +537,11 @@ namespace W65C02S.Console
             }
             if (input.Key == ConsoleKey.F5)
             {
-                emulator.Run();
+                if (emulator.Mode == RunMode.Debug)
+                    emulator.Run();
+                else
+                    emulator.Mode = RunMode.Debug;
+
                 goto WaitForInput;
             }
             if (input.Key == ConsoleKey.F9)
@@ -534,6 +559,13 @@ namespace W65C02S.Console
                 
                 goto WaitForInput;
             }
+            if (input.Key == ConsoleKey.F12)
+            {
+                emulator.Reset();
+                ClearClientArea(true);
+                goto Reset;
+            }
+
             if (input.Key == ConsoleKey.Escape)
             {
                 return;
@@ -565,11 +597,11 @@ namespace W65C02S.Console
             System.Console.CursorLeft = 40; System.Console.Write($"{SP:X4}");
             
             System.Console.CursorLeft = 50;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.N) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.N) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"N");
 
             System.Console.CursorLeft = 51;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.V) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.V) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"V");
 
             System.Console.CursorLeft = 52;
@@ -577,23 +609,23 @@ namespace W65C02S.Console
             System.Console.Write($"1");
 
             System.Console.CursorLeft = 53;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.B) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.B) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"B");
 
             System.Console.CursorLeft = 54;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.D) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.D) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"D");
 
             System.Console.CursorLeft = 55;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.I) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.I) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"I");
 
             System.Console.CursorLeft = 56;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.Z) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.Z) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"Z");
 
             System.Console.CursorLeft = 57;
-            System.Console.ForegroundColor = emulator.IsFlagSet(CPU.Enums.Enums.ProcessorFlags.C) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
+            System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.C) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"C");
 
             System.Console.CursorLeft = 66; System.Console.Write($"{PC:X4}");

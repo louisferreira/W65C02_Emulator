@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using W65C02S.Bus;
 
 namespace W65C02S.CPU
 {
@@ -16,8 +17,8 @@ namespace W65C02S.CPU
         {
             A = ((byte)(A & fetchedByte.Value));
 
-            SetFlag(Enums.Enums.ProcessorFlags.Z, A == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (A & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, A == 0x00);
+            SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
             IncrementPC(instructionLength);
         }
@@ -41,7 +42,7 @@ namespace W65C02S.CPU
         private void BEQ(byte instructionLength)
         {
             // Branch if Z=1 Branch if EQual (Pz=1)   
-            if (IsFlagSet(Enums.Enums.ProcessorFlags.Z))
+            if (IsFlagSet(ProcessorFlags.Z))
             {
                 // Z = 1 (take branch)
                 var amount = (sbyte)(fetchedByte.Value + 2);
@@ -65,7 +66,7 @@ namespace W65C02S.CPU
         {
 
             //Branch if Z=0 Branch if Not Equal (Pz=0)
-            if (!IsFlagSet(Enums.Enums.ProcessorFlags.Z))
+            if (!IsFlagSet(ProcessorFlags.Z))
             {
                 // Z = 0 (take branch)
                 var amount = (sbyte)(fetchedByte.Value + 2);
@@ -91,8 +92,8 @@ namespace W65C02S.CPU
         // BReaK instruction
         private void BRK(byte instructionLength)
         {
-            SetFlag(Enums.Enums.ProcessorFlags.B, true);
-            SetFlag(Enums.Enums.ProcessorFlags.Z, false);
+            SetFlag(ProcessorFlags.B, true);
+            SetFlag(ProcessorFlags.Z, false);
         }
 
         // Branch on oVerflow Clear (Pv=0)
@@ -110,7 +111,7 @@ namespace W65C02S.CPU
         // CLear Interrupt disable bit
         private void CLI(byte instructionLength)
         {
-            SetFlag(Enums.Enums.ProcessorFlags.I, false);
+            SetFlag(ProcessorFlags.I, false);
             IncrementPC(instructionLength);
         }
 
@@ -133,8 +134,8 @@ namespace W65C02S.CPU
         private void DEX(byte instructionLength)
         {
             X--;
-            SetFlag(Enums.Enums.ProcessorFlags.Z, X == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (X & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, X == 0x00);
+            SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
             IncrementPC(instructionLength);
         }
 
@@ -142,8 +143,8 @@ namespace W65C02S.CPU
         private void DEY(byte instructionLength)
         {
             Y--;
-            SetFlag(Enums.Enums.ProcessorFlags.Z, Y == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (Y & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, Y == 0x00);
+            SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
             IncrementPC(instructionLength);
         }
 
@@ -164,8 +165,8 @@ namespace W65C02S.CPU
                 A++;
             }
 
-            SetFlag(Enums.Enums.ProcessorFlags.Z, A == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (A & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, A == 0x00);
+            SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
             IncrementPC(instructionLength);
         }
@@ -174,8 +175,8 @@ namespace W65C02S.CPU
         private void INX(byte instructionLength)
         {
             X++;
-            SetFlag(Enums.Enums.ProcessorFlags.Z, X == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (X & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, X == 0x00);
+            SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
             IncrementPC(instructionLength);
         }
 
@@ -183,8 +184,8 @@ namespace W65C02S.CPU
         private void INY(byte instructionLength)
         {
             Y++;
-            SetFlag(Enums.Enums.ProcessorFlags.Z, Y == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (Y & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, Y == 0x00);
+            SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
             IncrementPC(instructionLength);
         }
 
@@ -217,8 +218,8 @@ namespace W65C02S.CPU
             if (fetchedByte.HasValue)
             {
                 A = fetchedByte.Value;
-                SetFlag(Enums.Enums.ProcessorFlags.Z, A == 0x00);
-                SetFlag(Enums.Enums.ProcessorFlags.N, (A & 0x80) == 0x80);
+                SetFlag(ProcessorFlags.Z, A == 0x00);
+                SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
             }
             IncrementPC(instructionLength);
         }
@@ -231,8 +232,8 @@ namespace W65C02S.CPU
             if (fetchedByte.HasValue)
             {
                 X = fetchedByte.Value;
-                SetFlag(Enums.Enums.ProcessorFlags.Z, X == 0x00);
-                SetFlag(Enums.Enums.ProcessorFlags.N, (X & 0x80) == 0x80);
+                SetFlag(ProcessorFlags.Z, X == 0x00);
+                SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
             }
             IncrementPC(instructionLength);
         }
@@ -245,8 +246,8 @@ namespace W65C02S.CPU
             if (fetchedByte.HasValue)
             {
                 Y = fetchedByte.Value;
-                SetFlag(Enums.Enums.ProcessorFlags.Z, Y == 0x00);
-                SetFlag(Enums.Enums.ProcessorFlags.N, (Y & 0x80) == 0x80);
+                SetFlag(ProcessorFlags.Z, Y == 0x00);
+                SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
             }
             IncrementPC(instructionLength);
         }
@@ -362,7 +363,7 @@ namespace W65C02S.CPU
         // SEt Interrupt disable status
         private void SEI(byte instructionLength)
         {
-            SetFlag(Enums.Enums.ProcessorFlags.I, true);
+            SetFlag(ProcessorFlags.I, true);
             IncrementPC(instructionLength);
         }
 
@@ -415,8 +416,8 @@ namespace W65C02S.CPU
             IncreaseSP();
             X = fetchedByte.Value;
 
-            SetFlag(Enums.Enums.ProcessorFlags.Z, X == 0x00);
-            SetFlag(Enums.Enums.ProcessorFlags.N, (X & 0x80) == 0x80);
+            SetFlag(ProcessorFlags.Z, X == 0x00);
+            SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
 
             IncrementPC(instructionLength);
         }

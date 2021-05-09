@@ -4,4 +4,8 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\W65C02S.Bus\W65C02S.Bus.csproj" />
+  </ItemGroup>
+
 </Project>

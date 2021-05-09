@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace W6502C.CPU
+namespace W65C02S.Bus.EventArgs
 {
-    public class Clock
+    public class RomLoadArgs
     {
-        
+        public byte[] Data { get; set; }
     }
 }

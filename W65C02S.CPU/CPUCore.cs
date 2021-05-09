@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using W65C02S.Bus;
 using W65C02S.CPU.Models;
-using static W65C02S.CPU.Enums.Enums;
+using W65C02S.Engine.Parsers;
 
 namespace W65C02S.CPU
 {
@@ -14,13 +14,10 @@ namespace W65C02S.CPU
     {
         private ulong clockTicks = 0;           // 0 to 18,446,744,073,709,551,615
         private byte? fetchedByte;
-        private byte? lastDataBusByte;
         private ushort? operandAddress;
         private List<Instruction> Records;
         private Instruction currentInstruction;
-        private readonly AddressBus addressBus;
-        private readonly DataBus dataBus;
-        private Guid busToken;
+        private readonly Bus.Bus bus;
 
         public byte A { get; set; }             // Accumulator Register
         public byte X { get; set; }             // X Register
@@ -28,24 +25,13 @@ namespace W65C02S.CPU
         public ushort SP { get; set; }          // Stack Pointer
         public ushort PC { get; set; }          // Program Counter
         public ProcessorFlags ST { get; internal set; }  // Status Register
-        public double ClockTicks => clockTicks;
 
-
-
-        //public event EventHandler<AddressBusEventArgs> OnAddressChanged;
-        //public event EventHandler<DataBusEventArgs> OnDataBussAccess;
-        public event EventHandler<InstructionEventArg> OnInstructionExecuted;
-        public event EventHandler<ExceptionEventArg> OnError;
-
-        public CPUCore(AddressBus addressBus, DataBus dataBus)
+        public CPUCore(Bus.Bus bus)
         {
+            this.bus = bus;
+
             Initialise();
             SetupInstructionTable();
-            this.addressBus = addressBus;
-            this.dataBus = dataBus;
-
-            busToken = this.dataBus.Subscribe(OnDataBusEvent);
-
         }
 
         
@@ -97,7 +83,7 @@ namespace W65C02S.CPU
             if (IsFlagSet(ProcessorFlags.B))
             {
                 var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor is in BREAK mode. Reset is required." };
-                OnError?.Invoke(this, e);
+                bus.Publish(e);
                 return;
             }
 
@@ -124,22 +110,20 @@ namespace W65C02S.CPU
                 {
                     incrPC = currentInstruction.AddressMode();
                     currentInstruction.Action(incrPC);
+                    clockTicks += incrPC;
                     RaiseInstructionExecuted();
                 }
                 catch (Exception ex)
                 {
-                    if (OnError != null)
-                    {
-                        var e = new ExceptionEventArg { ErrorMessage = ex.Message };
-                        OnError.Invoke(this, e);
-                    }
+                    var e = new ExceptionEventArg { ErrorMessage = ex.Message };
+                    bus.Publish(e);
                 }
             }
             else
             {
                 ST = (ST | ProcessorFlags.B);
                 var e = new ExceptionEventArg() { ErrorMessage = $"OpCode [0x{fetchedByte:X2}] not Implemented" };
-                OnError?.Invoke(this, e);
+                bus.Publish(e);
             }
 
         }
@@ -204,35 +188,42 @@ namespace W65C02S.CPU
         private void ReadValueFromAddress(ushort address)
         {
             fetchedByte = null;
-            addressBus.Publish(address);
-            while (fetchedByte == null)
+            var arg = new AddressBusEventArgs
             {
-                Thread.Sleep(100);
-            }
-
-        }
-        private void OnDataBusEvent(byte data)
-        {
-            lastDataBusByte = data;
-            fetchedByte = data;
+                Address = address,
+                Mode = DataBusMode.Read
+            };
+            bus.Publish(arg);
+            fetchedByte = arg.Data;
         }
 
         private void WriteValueToAddress(ushort address, byte data)
         {
-            addressBus.Publish(address);
-            dataBus.Publish(data);
+            var arg = new AddressBusEventArgs
+            {
+                Address = address,
+                Mode = DataBusMode.Write,
+                Data = data
+            };
+            bus.Publish(arg);
         }
 
         private void RaiseInstructionExecuted()
         {
-            if (OnInstructionExecuted != null)
+            var arg = new InstructionDisplayEventArg
             {
-                var arg = new InstructionEventArg
-                {
-                    CurrentInstruction = currentInstruction
+                CurrentInstruction = currentInstruction,
+                DecodedInstruction = InstructionParser.Parse(currentInstruction),
+                A = A,
+                X = X,
+                Y = Y,
+                PC = PC,
+                SP = SP,
+                ST = ST,
+                RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
+                ClockTicks = clockTicks
             };
-                OnInstructionExecuted.Invoke(this, arg);
-            }
+            bus.Publish(arg);
         }
 
         private void SetupInstructionTable()
@@ -456,7 +447,7 @@ namespace W65C02S.CPU
 
         public void Dispose()
         {
-            this.dataBus.UnSubscribe(busToken);
+            
         }
     }
 }

@@ -7,6 +7,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\W65C02S.Engine\W65C02S.Engine.csproj" />
+    <ProjectReference Include="..\W65C02S.RAM\W65C02S.RAM.csproj" />
+    <ProjectReference Include="..\W65C02S.ROM\W65C02S.ROM.csproj" />
   </ItemGroup>
 
 </Project>
