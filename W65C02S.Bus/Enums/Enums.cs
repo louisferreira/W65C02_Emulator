@@ -20,7 +20,8 @@ namespace W65C02S.Bus
     }
     public enum DataBusMode
     {
-        Read = 0,
-        Write = 1
+        Read = 1,
+        Write = 2,
+        ReadWrite = 3
     }
 }

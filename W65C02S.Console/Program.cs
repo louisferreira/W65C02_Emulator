@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using W65C02S.Bus;
 using W65C02S.CPU;
 using W65C02S.Engine;
+using W65C02S.InputOutput.Devices;
+using W65C02S.MemoryMappedDevice;
 using W65C02S.RAM;
 using W65C02S.ROM;
 
@@ -15,16 +17,16 @@ namespace W65C02S.Console
 
         private const int clientAreaStart = 8;
         private const int clientAreaHeight = 34;
-        private const int clientAreaEnd = clientAreaStart + clientAreaHeight;
-
+        
         private static int lastInstructionPos = 0;
         private static bool binaryFileLoaded = false;
+        private static bool emulatorStarted = false;
 
         private static Emulator emulator;
         private static Bus.Bus bus;
         private static ROM32K rom;
         private static RAM32K ram;
-
+        private static W6522_Via ioDevice;
         static void Main(string[] args)
         {
             System.Console.SetWindowSize(maxColumns, maxRows);
@@ -35,8 +37,9 @@ namespace W65C02S.Console
             using (bus = new Bus.Bus())
             {
                 emulator = new Emulator(bus);
-                rom = new ROM32K(bus, 0x8000);
-                ram = new RAM32K(bus, 0);
+                ram = new RAM32K(bus, 0, 0x7FFF, DataBusMode.ReadWrite);
+                ioDevice = new W6522_Via(bus, 0x8000, 0x8FFF, DataBusMode.ReadWrite);
+                rom = new ROM32K(bus, 0x9000, 0xFFFF, DataBusMode.Read);
 
                 bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
                 bus.Subscribe<InstructionDisplayEventArg>(OnInstructionExecuted);
@@ -138,9 +141,11 @@ namespace W65C02S.Console
                 else
                 {
                     System.Console.CursorVisible = false;
+                    emulatorStarted = true;
                     emulator.Reset();
                     DisplayMenu_Emulator();
                     System.Console.CursorVisible = true;
+                    emulatorStarted = false;
                     goto Reset;
                 }
             }
@@ -193,12 +198,7 @@ namespace W65C02S.Console
 
             var data = System.IO.File.ReadAllBytes(filePath);
 
-            if (data.Length < 32768)
-            {
-                System.Console.WriteLine($"Binary file is too small. ROM size is 32768 bytes, and this file is only {data.Length} bytes");
-                System.Console.Write("Enter full path to file:> ");
-                goto WaitForInput;
-            }
+
             if (data.Length > 32768)
             {
                 System.Console.WriteLine($"Binary file is too big. ROM size is 32768 bytes, and this file is {data.Length} bytes");
@@ -206,14 +206,11 @@ namespace W65C02S.Console
                 goto WaitForInput;
             }
 
-            if (data.Length == 32768)
-            {
-                emulator.LoadROM(data);
-                binaryFileLoaded = true;
-                System.Console.WriteLine($"Loaded {data.Length} bytes into ROM....");
-                System.Console.Write("Press Enter to return to main menu :>");
-                System.Console.ReadLine();
-            }
+            emulator.LoadROM(data);
+            binaryFileLoaded = true;
+            System.Console.WriteLine($"Loaded {data.Length} bytes into ROM....");
+            System.Console.Write("Press Enter to return to main menu :>");
+            System.Console.ReadLine();
         }
 
         private static void DisplayMenu_Monitor()
@@ -473,7 +470,7 @@ namespace W65C02S.Console
         {
             var leftCol = 0;
             var rightCol = maxColumns / 2;
-
+            
             System.Console.Clear();
             CreateSubMenuHeading("Emulator");
 
@@ -639,6 +636,8 @@ namespace W65C02S.Console
 
         private static void UpdateAddress(ushort address)
         {
+            if ( !emulatorStarted)
+                return;
             var curLeft = System.Console.CursorLeft;
             var curTop = System.Console.CursorTop;
             System.Console.ForegroundColor = ConsoleColor.DarkYellow;

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\W65C02S.Bus\W65C02S.Bus.csproj" />
+    <ProjectReference Include="..\W65C02S.MemoryMappedDevice\W65C02S.MemoryMappedDevice.csproj" />
   </ItemGroup>
 
 </Project>
