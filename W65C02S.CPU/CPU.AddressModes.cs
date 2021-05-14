@@ -15,6 +15,7 @@ namespace W65C02S.CPU
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)((hi << 8) | lo);
+            fetchedByte = null;
         }
 
         // (a,x)
@@ -31,7 +32,7 @@ namespace W65C02S.CPU
             hi = fetchedByte.Value;
 
             operandAddress = (ushort?)((hi << 8) + lo);
-
+            fetchedByte = null;
         }
 
         // a,x
@@ -41,6 +42,7 @@ namespace W65C02S.CPU
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)(((hi << 8) | lo) + X);
+            fetchedByte = null;
         }
 
         // a,y
@@ -50,6 +52,7 @@ namespace W65C02S.CPU
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)(((hi << 8) | lo) + Y);
+            fetchedByte = null;
         }
 
         // (a)
@@ -66,18 +69,20 @@ namespace W65C02S.CPU
             hi = fetchedByte.Value;
 
             operandAddress = (ushort?)((hi << 8) + lo);
-
+            fetchedByte = null;
         }
 
         // A
         private void Accumulator()
         {
-
+            operandAddress = null;
+            fetchedByte = null;
         }
 
         // #
         private void Immediate()
         {
+            operandAddress = null;
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
         }
 
@@ -85,11 +90,13 @@ namespace W65C02S.CPU
         private void Implied()
         {
             operandAddress = PC;
+            fetchedByte = null;
         }
 
         // r
         private void ProgramCounterRelative()
         {
+            operandAddress = null;
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
         }
 
@@ -97,13 +104,14 @@ namespace W65C02S.CPU
         private void Stack()
         {
             operandAddress = SP;
+            fetchedByte = null;
         }
 
         // zp
         private void ZeroPage()
         {
-            fetchedByte = currentInstruction.Operand1 ?? 0x00;
-            operandAddress = fetchedByte.Value;
+            fetchedByte = null;
+            operandAddress = currentInstruction.Operand1 ?? 0x00;
         }
 
         // (zp,x)
@@ -120,20 +128,21 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
             
             operandAddress = (ushort?)((hi << 8) + lo);
+            fetchedByte = null;
         }
 
         // zp,x
         private void ZeroPageIndexedWithX()
         {
-            fetchedByte = currentInstruction.Operand1 ?? 0x00;
-            operandAddress = (ushort)(fetchedByte.Value + X);
+            fetchedByte = null;
+            operandAddress = (ushort)((currentInstruction.Operand1 ?? 0x00) + X);
         }
 
         // zp,y
         private void ZeroPageIndexedWithY()
         {
-            fetchedByte = currentInstruction.Operand1 ?? 0x00;
-            operandAddress = (ushort)(fetchedByte.Value + Y);
+            fetchedByte = null;
+            operandAddress = (ushort)((currentInstruction.Operand1 ?? 0x00) + Y);
         }
 
         // (zp)
@@ -147,6 +156,7 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
             
             operandAddress = ((ushort?)((hi << 8) + lo));
+            fetchedByte = null;
         }
 
         // (zp),y
@@ -160,6 +170,7 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
 
             operandAddress = (ushort)(((hi << 8) + lo) + Y);
+            fetchedByte = null;
         }
     }
 }

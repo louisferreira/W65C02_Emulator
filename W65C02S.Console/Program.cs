@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using W65C02S.Bus;
 using W65C02S.CPU;
@@ -12,6 +13,7 @@ namespace W65C02S.Console
 {
     class Program
     {
+        private static Process p;
         private const int maxColumns = 120;
         private const int maxRows = 40;
 
@@ -59,6 +61,9 @@ namespace W65C02S.Console
                 emulator.Dispose();
                 bus.Dispose();
             }
+
+            if (p != null)
+                p.Kill(true);
 
             System.Console.WriteLine("Bye!");
         }
@@ -139,7 +144,7 @@ namespace W65C02S.Console
 
             System.Console.WriteLine("    F2 = Memory Monitor".PadRight(colWidth));
             System.Console.WriteLine("    F5 = Start Emulator".PadRight(colWidth));
-            //System.Console.WriteLine("   F12 = Reset System".PadRight(colWidth));
+            System.Console.WriteLine("    F8 = OpCode Viewer Application".PadRight(colWidth));
             System.Console.WriteLine();
             System.Console.WriteLine();
             System.Console.WriteLine("     X = Quit".PadRight(colWidth));
@@ -178,11 +183,13 @@ namespace W65C02S.Console
                     goto Reset;
                 }
             }
-            //if (input.Key == ConsoleKey.F12)
-            //{
-            //    binaryFileLoaded = false;
-            //    goto Reset;
-            //}
+            if (input.Key == ConsoleKey.F8)
+            {
+                ProcessStartInfo startinfo = new ProcessStartInfo(".\\OpCodeViewer.exe");
+                startinfo.CreateNoWindow = true;
+                startinfo.UseShellExecute = true;
+                p = Process.Start(startinfo);
+            }
             if (input.Key == ConsoleKey.X)
             {
                 return;

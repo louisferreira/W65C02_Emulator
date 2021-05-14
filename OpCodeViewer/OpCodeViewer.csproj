@@ -5,4 +5,8 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(OutDir)&quot; &quot;$(SolutionDir)W65C02S.Console\bin\Debug\netcoreapp3.1\&quot; /y" />
+  </Target>
+
 </Project>

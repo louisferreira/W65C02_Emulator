@@ -250,6 +250,9 @@ namespace W65C02S.CPU
         // BIt Test
         private void BIT() 
         {
+            if(operandAddress.HasValue)
+                ReadValueFromAddress(operandAddress.Value);
+
             byte M = fetchedByte.Value;
             SetFlag(ProcessorFlags.Z, ((A ^ M) == M));
             IncrementPC(currentInstruction.Length); 
@@ -778,7 +781,7 @@ namespace W65C02S.CPU
             }
 
             ReadValueFromAddress(operandAddress.Value);
-            fetchedByte = ((byte)(fetchedByte.Value ^ mask));
+            fetchedByte = ((byte)(fetchedByte.Value & ~mask));
             WriteValueToAddress(operandAddress.Value, fetchedByte.Value);
 
             IncrementPC(currentInstruction.Length);
@@ -951,9 +954,8 @@ namespace W65C02S.CPU
             }
 
             ReadValueFromAddress(operandAddress.Value);
-            var val = fetchedByte.Value;
-            val = ((byte)(val ^ mask));
-            WriteValueToAddress(operandAddress.Value, val);
+            fetchedByte = (byte)(fetchedByte | mask);
+            WriteValueToAddress(operandAddress.Value, fetchedByte.Value);
 
             IncrementPC(currentInstruction.Length); 
         }
