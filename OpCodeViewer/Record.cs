@@ -15,5 +15,6 @@ namespace OpCodeViewer
         public string OperationSummary { get; set; }
         public string AddressModeDescription { get; set; }
         public string MnemonicDescription { get; set; }
+        public byte Length { get; set; }
     }
 }

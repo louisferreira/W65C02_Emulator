@@ -35,7 +35,6 @@ namespace W65C02S.Engine
         {
             this.bus = bus;
             cpu = new CPUCore(this.bus);
-            
         }
 
         public byte ReadMemoryLocation(ushort address)
@@ -69,6 +68,16 @@ namespace W65C02S.Engine
             cpu.Step();
         }
 
+        public void SendIRQ()
+        {
+            bus.Publish(new InteruptRequestEventArgs { InteruptType = InteruptType.IRQ});
+        }
+
+        public void SendNMI()
+        {
+            bus.Publish(new InteruptRequestEventArgs { InteruptType = InteruptType.NMI });
+        }
+
         public void Run()
         {
             mode = RunMode.Run;
@@ -90,6 +99,11 @@ namespace W65C02S.Engine
                 //else
                 cpu.Step();
             }
+        }
+
+        public void ClearBreakFlag()
+        {
+            cpu.ST = (cpu.ST ^ ProcessorFlags.B);
         }
 
         public bool IsFlagSet(Bus.ProcessorFlags flag)

@@ -6,7 +6,8 @@ namespace W65C02S.CPU
     public class AddressBusEventArgs
     {
         public ushort Address { get;  set; }
-        public DataBusMode Mode { get; set; }
         public byte Data { get; set; }
+        public DataBusMode Mode { get; set; }
+        public string DeviceName { get; set; }
     }
 }

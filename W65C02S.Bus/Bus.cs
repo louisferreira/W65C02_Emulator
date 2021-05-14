@@ -32,17 +32,14 @@ namespace W65C02S.Bus
 
         public void Publish<T>(T data)
         {
-            List<(Type type, Delegate methodToCall)> registrations = null;
             lock (locker)
             {
-                registrations = new List<(Type type, Delegate methodToCall)>(components);
-            }
-
-            foreach (var registration in registrations)
-            {
-                if (registration.type == typeof(T))
+                foreach (var component in components)
                 {
-                    ((Action<T>)registration.methodToCall)(data);
+                    if (component.eventType == typeof(T))
+                    {
+                        ((Action<T>)component.methodToCall)(data);
+                    }
                 }
             }
         }

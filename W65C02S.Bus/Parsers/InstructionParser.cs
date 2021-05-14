@@ -31,7 +31,7 @@ namespace W65C02S.Engine.Parsers
                 case "a,y":
                     return "${0:X2},${1:X2} (Absolute Indexed with Y)";
                 case "(a)":
-                    return "(${0:X2}) (Absolute Indirect)";
+                    return "(${0:X2}{1:X2}) (Absolute Indirect)";
                 case "A":
                     return "${0:X2} (Accumulator)";
                 case "#":

@@ -12,6 +12,10 @@ namespace W65C02S.MemoryMappedDevice
         private readonly int endAddress;
         private readonly DataBusMode mode;
 
+        public ushort StartAddress => startAddress;
+        public int EndAddress => endAddress;
+        public DataBusMode Mode => mode;
+        protected abstract string DeviceName {get; }
         public BaseIODevice(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode)
         {
             this.bus = bus;
@@ -28,6 +32,11 @@ namespace W65C02S.MemoryMappedDevice
         {
             if (arg.Address >= startAddress && arg.Address <= endAddress)
             {
+                if(arg.Mode  == DataBusMode.Write && this.mode == DataBusMode.Read)
+                {
+                    throw new InvalidOperationException($"Attempt to write data to a readonly device ({DeviceName})");
+                }
+
                 if (arg.Mode == DataBusMode.Read && ((this.mode & DataBusMode.Read) == DataBusMode.Read))
                 {
                     arg.Data = memory[arg.Address - startAddress];
@@ -37,6 +46,7 @@ namespace W65C02S.MemoryMappedDevice
                 {
                     memory[arg.Address - startAddress] = arg.Data;
                 }
+                arg.DeviceName = DeviceName;
             }
         }
 

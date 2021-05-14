@@ -6,9 +6,11 @@ using W65C02S.MemoryMappedDevice;
 
 namespace W65C02S.RAM
 {
-    public class RAM32K : BaseIODevice
+    public class RAM : BaseIODevice
     {
-        public RAM32K(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(bus, startAddress, endAddress, mode)
+        protected override string DeviceName => nameof(RAM);
+
+        public RAM(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(bus, startAddress, endAddress, mode)
         {
             // initialise stack
             for (int index = startAddress; index < endAddress; index++)

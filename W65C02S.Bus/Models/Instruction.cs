@@ -6,12 +6,6 @@ using System.Threading.Tasks;
 
 namespace W65C02S.CPU.Models
 {
-    public class ParsedInstruction
-    {
-
-    }
-
-
     public class Instruction
     {
         public byte OpCode { get; set; }

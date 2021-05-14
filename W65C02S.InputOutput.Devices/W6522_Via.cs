@@ -6,6 +6,7 @@ namespace W65C02S.InputOutput.Devices
 {
     public class W6522_Via : BaseIODevice
     {
+        protected override string DeviceName => nameof(W6522_Via);
         public W6522_Via(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(bus, startAddress, endAddress, mode)
         {
         }

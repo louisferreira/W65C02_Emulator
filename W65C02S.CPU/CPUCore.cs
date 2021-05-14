@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using W65C02S.Bus;
+using W65C02S.Bus.EventArgs;
 using W65C02S.CPU.Models;
 using W65C02S.Engine.Parsers;
 
@@ -15,27 +16,56 @@ namespace W65C02S.CPU
         private ulong clockTicks = 0;           // 0 to 18,446,744,073,709,551,615
         private byte? fetchedByte;
         private ushort? operandAddress;
-        private List<Instruction> Records;
+        private List<Instruction> InstructionTable;
         private Instruction currentInstruction;
         private readonly Bus.Bus bus;
+        private bool stopCmdEffected = false;
+        private bool interuptRequested = false;
 
+
+        private const ushort IRQ_Vect = 0x0FFFE;
+        private const ushort Rest_Vect = 0x0FFFC;
+        private const ushort NMI_Vect = 0x0FFFA;
+
+        /// <summary>
+        /// Accumulator Register
+        /// </summary>
         public byte A { get; set; }             // Accumulator Register
+        
+        /// <summary>
+        /// X Index Register
+        /// </summary>
         public byte X { get; set; }             // X Register
+        
+        /// <summary>
+        /// Y Index Register
+        /// </summary>
         public byte Y { get; set; }             // Y Register
+        
+        /// <summary>
+        /// Stack Pointer Register
+        /// </summary>
         public ushort SP { get; set; }          // Stack Pointer
+        
+        /// <summary>
+        /// Program Counter Register
+        /// </summary>
         public ushort PC { get; set; }          // Program Counter
-        public ProcessorFlags ST { get; internal set; }  // Status Register
+        
+        /// <summary>
+        /// Processor Status Register
+        /// </summary>
+        public ProcessorFlags ST { get; set; }  // Status Register
 
         public CPUCore(Bus.Bus bus)
         {
             this.bus = bus;
-
+            bus.Subscribe<InteruptRequestEventArgs>(OnInteruptRequest);
             Initialise();
             SetupInstructionTable();
         }
 
         
-
         private void Initialise()
         {
             clockTicks = 0;
@@ -71,19 +101,32 @@ namespace W65C02S.CPU
             clockTicks++;
 
             PC = (ushort)((hi << 8) | lo);
+            stopCmdEffected = false;
         }
         public void Step()
         {
+            if (stopCmdEffected)
+            {
+                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor has STOPed . A Reset is required." };
+                bus.Publish(e);
+                return;
+            }
             Execute();
         }
 
         private void Execute()
         {
-            byte incrPC = 0x00;
-            if (IsFlagSet(ProcessorFlags.B))
+            if (IsFlagSet(ProcessorFlags.B) & !interuptRequested)
             {
-                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor is in BREAK mode. Reset is required." };
+                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor is in BREAK mode. Waiting for IRQ/NMI/Reset." };
                 bus.Publish(e);
+                return;
+            }
+
+            if (interuptRequested)
+            {
+                HandleIRQ();
+                interuptRequested = false;
                 return;
             }
 
@@ -91,9 +134,9 @@ namespace W65C02S.CPU
             fetchedByte = null;
             ReadValueFromAddress(PC);
 
-            if (Records.Any(x => x.OpCode == fetchedByte.Value))
+            if (InstructionTable.Any(x => x.OpCode == fetchedByte.Value))
             {
-                currentInstruction = Records.First(x => x.OpCode == fetchedByte.Value);
+                currentInstruction = InstructionTable.First(x => x.OpCode == fetchedByte.Value);
 
                 if (currentInstruction.Length > 1)
                 {
@@ -108,21 +151,36 @@ namespace W65C02S.CPU
 
                 try
                 {
-                    incrPC = currentInstruction.AddressMode();
+                    var incrPC = currentInstruction.AddressMode();
                     currentInstruction.Action(incrPC);
                     clockTicks += incrPC;
-                    RaiseInstructionExecuted();
+                    
                 }
-                catch (Exception ex)
+                catch (NotImplementedException ex)
                 {
-                    var e = new ExceptionEventArg { ErrorMessage = ex.Message };
+                    stopCmdEffected = true;
+                    var e = new ExceptionEventArg() { ErrorMessage = $"OpCode [${currentInstruction.OpCode:X2} ({currentInstruction.Mnemonic})]  not Implemented".PadRight(100, ' ') };
                     bus.Publish(e);
+                }
+                catch (Exception x)
+                {
+                    stopCmdEffected = true;
+                    var e = new ExceptionEventArg() { ErrorMessage = x.Message.PadRight(100, ' ') };
+                    bus.Publish(e);
+                }
+                finally {
+                    RaiseInstructionExecuted();
+                    if(currentInstruction.Mnemonic == "BRK" || currentInstruction.Mnemonic == "WAI")
+                    {
+                        var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with BRK/WAI instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
+                        bus.Publish(e);
+                    }
                 }
             }
             else
             {
-                ST = (ST | ProcessorFlags.B);
-                var e = new ExceptionEventArg() { ErrorMessage = $"OpCode [0x{fetchedByte:X2}] not Implemented" };
+                stopCmdEffected = true;
+                var e = new ExceptionEventArg() { ErrorMessage = $"Unknown instruction: ${fetchedByte:X2}".PadRight(100, ' ')};
                 bus.Publish(e);
             }
 
@@ -195,6 +253,7 @@ namespace W65C02S.CPU
             };
             bus.Publish(arg);
             fetchedByte = arg.Data;
+            clockTicks++;
         }
 
         private void WriteValueToAddress(ushort address, byte data)
@@ -206,6 +265,7 @@ namespace W65C02S.CPU
                 Data = data
             };
             bus.Publish(arg);
+            clockTicks++;
         }
 
         private void RaiseInstructionExecuted()
@@ -226,9 +286,69 @@ namespace W65C02S.CPU
             bus.Publish(arg);
         }
 
+        private void OnInteruptRequest(InteruptRequestEventArgs arg)
+        {
+            if(arg.InteruptType == InteruptType.IRQ)
+            {
+                interuptRequested = true;
+            }
+            if (arg.InteruptType == InteruptType.NMI)
+            {
+                interuptRequested = true;
+            }
+        }
+
+        private void HandleIRQ()
+        {
+            // save return address to stack, hi byte first then lo byte
+            var retAddr = (PC + currentInstruction.Length);
+            WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
+            DecreaseSP();
+
+            WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
+            DecreaseSP();
+
+            // save the Processor Flags to stack
+            WriteValueToAddress(SP, (byte)ST);
+            DecreaseSP();
+
+            PC = IRQ_Vect;
+            ReadValueFromAddress(PC);
+            var lo = fetchedByte;
+            clockTicks++;
+
+            PC++;
+            ReadValueFromAddress(PC);
+            var hi = fetchedByte;
+            clockTicks++;
+
+            PC = (ushort)((hi << 8) | lo);
+
+            var arg = new InstructionDisplayEventArg
+            {
+                CurrentInstruction = currentInstruction,
+                DecodedInstruction = "IRQ Request",
+                A = A,
+                X = X,
+                Y = Y,
+                PC = PC,
+                SP = SP,
+                ST = ST,
+                RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
+                ClockTicks = clockTicks
+            };
+            bus.Publish(arg);
+            SetFlag(ProcessorFlags.B, false);
+        }
+
+        private void HandleNMI()
+        {
+            
+        }
+
         private void SetupInstructionTable()
         {
-            Records = new List<Instruction>() {
+            InstructionTable = new List<Instruction>() {
                 { new Instruction{OpCode = 0X6D, Mnemonic = "ADC", Action = ADC, OperationDescription = "A + M + C -> A", FlagsAffected = "NVZC", AddressCode = "a", AddressMode = Absolute, Length = 3} },
                 { new Instruction{OpCode = 0X7D, Mnemonic = "ADC", Action = ADC, OperationDescription = "A + M + C -> A", FlagsAffected = "NVZC", AddressCode = "a,x", AddressMode = AbsoluteIndexedWithX, Length = 3} },
                 { new Instruction{OpCode = 0X79, Mnemonic = "ADC", Action = ADC, OperationDescription = "A + M + C -> A", FlagsAffected = "NVZC", AddressCode = "a,y", AddressMode = AbsoluteIndexedWithY, Length = 3} },
@@ -447,7 +567,7 @@ namespace W65C02S.CPU
 
         public void Dispose()
         {
-            
+            bus.UnSubscribe<InteruptRequestEventArgs>(OnInteruptRequest);
         }
     }
 }

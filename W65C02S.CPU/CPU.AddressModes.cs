@@ -23,8 +23,16 @@ namespace W65C02S.CPU
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
+            var baseAdd = (ushort)(((hi << 8) | lo) + X);
+            
+            ReadValueFromAddress(baseAdd);
+            lo = fetchedByte.Value;
+            
+            ReadValueFromAddress((ushort)(baseAdd + 1));
+            hi = fetchedByte.Value;
 
-            operandAddress = (ushort)(((hi << 8) | lo) + X);
+            operandAddress = (ushort?)((hi << 8) + lo);
+
             return 3;
         }
 
@@ -53,8 +61,16 @@ namespace W65C02S.CPU
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
+            var baseAdd = (ushort)((hi << 8) | lo);
 
-            PC = (ushort)((hi << 8) | lo);
+            ReadValueFromAddress(baseAdd);
+            lo = fetchedByte.Value;
+
+            ReadValueFromAddress((ushort)(baseAdd + 1));
+            hi = fetchedByte.Value;
+
+            operandAddress = (ushort?)((hi << 8) + lo);
+
             return 3;
         }
 
