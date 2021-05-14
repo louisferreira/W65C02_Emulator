@@ -130,30 +130,29 @@ namespace W65C02S.CPU
                 return;
             }
 
-            operandAddress = null;
-            fetchedByte = null;
             ReadValueFromAddress(PC);
 
             if (InstructionTable.Any(x => x.OpCode == fetchedByte.Value))
             {
                 currentInstruction = InstructionTable.First(x => x.OpCode == fetchedByte.Value);
-
-                if (currentInstruction.Length > 1)
+                if (currentInstruction.Length == 2)
                 {
-                    byte[] operands = new byte[currentInstruction.Length - 1];
-                    for (ushort index = 1; index < currentInstruction.Length; index++)
-                    {
-                        ReadValueFromAddress((ushort)(PC + index));
-                        operands[index - 1] = fetchedByte.Value;
-                    }
-                    currentInstruction.Set(operands);
+                    ReadValueFromAddress((ushort)(PC + 1));
+                    currentInstruction.Operand1 = fetchedByte.Value;
+                }
+                if (currentInstruction.Length == 3)
+                {
+                    ReadValueFromAddress((ushort)(PC + 1));
+                    currentInstruction.Operand1 = fetchedByte.Value;
+                    ReadValueFromAddress((ushort)(PC + 2));
+                    currentInstruction.Operand2 = fetchedByte.Value;
                 }
 
                 try
                 {
-                    var incrPC = currentInstruction.AddressMode();
-                    currentInstruction.Action(incrPC);
-                    clockTicks += incrPC;
+                    currentInstruction.AddressMode();
+                    currentInstruction.Action();
+                    clockTicks += currentInstruction.Length;
                     
                 }
                 catch (NotImplementedException ex)
@@ -175,6 +174,8 @@ namespace W65C02S.CPU
                         var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with BRK/WAI instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
                         bus.Publish(e);
                     }
+                    operandAddress = null;
+                    fetchedByte = null;
                 }
             }
             else

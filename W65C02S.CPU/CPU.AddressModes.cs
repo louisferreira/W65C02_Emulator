@@ -9,17 +9,16 @@ namespace W65C02S.CPU
     public partial class CPUCore
     {
         // a
-        private byte Absolute()
+        private void Absolute()
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)((hi << 8) | lo);
-            return 3;
         }
 
         // (a,x)
-        private byte AbsoluteIndexedIndirect()
+        private void AbsoluteIndexedIndirect()
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
@@ -33,31 +32,28 @@ namespace W65C02S.CPU
 
             operandAddress = (ushort?)((hi << 8) + lo);
 
-            return 3;
         }
 
         // a,x
-        private byte AbsoluteIndexedWithX()
+        private void AbsoluteIndexedWithX()
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)(((hi << 8) | lo) + X);
-            return 3;
         }
 
         // a,y
-        private byte AbsoluteIndexedWithY()
+        private void AbsoluteIndexedWithY()
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
 
             operandAddress = (ushort)(((hi << 8) | lo) + Y);
-            return 3;
         }
 
         // (a)
-        private byte AbsoluteIndirect()
+        private void AbsoluteIndirect()
         {
             var lo = currentInstruction.Operand1 ?? 0x00;
             var hi = currentInstruction.Operand2 ?? 0x00;
@@ -71,53 +67,47 @@ namespace W65C02S.CPU
 
             operandAddress = (ushort?)((hi << 8) + lo);
 
-            return 3;
         }
 
         // A
-        private byte Accumulator()
+        private void Accumulator()
         {
-            return 1;
+
         }
 
         // #
-        private byte Immediate()
+        private void Immediate()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
-            return 2;
         }
 
         // i
-        private byte Implied()
+        private void Implied()
         {
             operandAddress = PC;
-            return 1;
         }
 
         // r
-        private byte ProgramCounterRelative()
+        private void ProgramCounterRelative()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
-            return 2;
         }
 
         // s
-        private byte Stack()
+        private void Stack()
         {
             operandAddress = SP;
-            return 1;
         }
 
         // zp
-        private byte ZeroPage()
+        private void ZeroPage()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
             operandAddress = fetchedByte.Value;
-            return 2;
         }
 
         // (zp,x)
-        private byte ZeroPageIndexedIndirect()
+        private void ZeroPageIndexedIndirect()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
             var baseAdd = fetchedByte.Value;
@@ -130,27 +120,24 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
             
             operandAddress = (ushort?)((hi << 8) + lo);
-            return 2;
         }
 
         // zp,x
-        private byte ZeroPageIndexedWithX()
+        private void ZeroPageIndexedWithX()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
             operandAddress = (ushort)(fetchedByte.Value + X);
-            return 2;
         }
 
         // zp,y
-        private byte ZeroPageIndexedWithY()
+        private void ZeroPageIndexedWithY()
         {
             fetchedByte = currentInstruction.Operand1 ?? 0x00;
             operandAddress = (ushort)(fetchedByte.Value + Y);
-            return 2;
         }
 
         // (zp)
-        private byte ZeroPageIndirect()
+        private void ZeroPageIndirect()
         {
             var baseAddr = currentInstruction.Operand1 ?? 0x00;
             ReadValueFromAddress(baseAddr);
@@ -160,11 +147,10 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
             
             operandAddress = ((ushort?)((hi << 8) + lo));
-            return 2;
         }
 
         // (zp),y
-        private byte ZeroPageIndirectIndexedWithY()
+        private void ZeroPageIndirectIndexedWithY()
         {
             var baseAdd = currentInstruction.Operand1 ?? 0x00;
             ReadValueFromAddress(baseAdd);
@@ -174,7 +160,6 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
 
             operandAddress = (ushort)(((hi << 8) + lo) + Y);
-            return 2;
         }
     }
 }

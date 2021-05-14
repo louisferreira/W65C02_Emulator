@@ -11,7 +11,7 @@ namespace W65C02S.CPU
     {
 
         // ADd memory to accumulator with Carry
-        private void ADC(byte instructionLength) 
+        private void ADC() 
         {
             if (IsFlagSet(ProcessorFlags.D))
             {
@@ -22,7 +22,7 @@ namespace W65C02S.CPU
                 ADC_BinaryMode();
             }
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
         private void ADC_BinaryMode()
         {
@@ -89,18 +89,18 @@ namespace W65C02S.CPU
 
 
         // "AND" memory with accumulator
-        private void AND(byte instructionLength)
+        private void AND()
         {
             A = ((byte)(A & fetchedByte.Value));
 
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Arithmetic Shift one bit Left, memory or accumulator
-        private void ASL(byte instructionLength) 
+        private void ASL() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -117,11 +117,11 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.C, c);
             A = (byte)(operand << 1);
 
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Branch on Bit Reset
-        private void BBR(byte instructionLength) 
+        private void BBR() 
         {
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
@@ -160,11 +160,11 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength); 
+                IncrementPC(currentInstruction.Length); 
         }
 
         // Branch on Bit Set
-        private void BBS(byte instructionLength)
+        private void BBS()
         {
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
@@ -203,11 +203,11 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
         }
 
         // Branch on Carry Clear (Pc=0)
-        private void BCC(byte instructionLength) 
+        private void BCC() 
         {
             if ( !IsFlagSet(ProcessorFlags.C))
             {
@@ -215,11 +215,11 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
         }
 
         // Branch on Carry Set (Pc=1)
-        private void BCS(byte instructionLength) 
+        private void BCS() 
         {
             if (IsFlagSet(ProcessorFlags.C))
             {
@@ -227,11 +227,11 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
         }
 
         // Branch if EQual (Pz=1)
-        private void BEQ(byte instructionLength)
+        private void BEQ()
         {
             // Branch if Z=1 Branch if EQual (Pz=1)   
             if (IsFlagSet(ProcessorFlags.Z))
@@ -243,20 +243,20 @@ namespace W65C02S.CPU
             else
             {
                 // Z = 0 (next instruction)
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
             }
         }
 
         // BIt Test
-        private void BIT(byte instructionLength) 
+        private void BIT() 
         {
             byte M = fetchedByte.Value;
             SetFlag(ProcessorFlags.Z, ((A ^ M) == M));
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Branch if result MInus (Pn=1)
-        private void BMI(byte instructionLength) 
+        private void BMI() 
         {
             //Branch if Z=0 Branch if Not Equal (Pz=1)
             if (IsFlagSet(ProcessorFlags.Z))
@@ -268,12 +268,12 @@ namespace W65C02S.CPU
             else
             {
                 // Z = 0 (next instruction)
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
             }
         }
 
         // Branch if Not Equal (Pz=0)
-        private void BNE(byte instructionLength)
+        private void BNE()
         {
 
             //Branch if Z=0 Branch if Not Equal (Pz=0)
@@ -285,13 +285,13 @@ namespace W65C02S.CPU
             }
             else
             {
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
             }
 
         }
 
         // Branch if result PLus (Pn=0)
-        private void BPL(byte instructionLength) 
+        private void BPL() 
         {
             if (IsFlagSet(ProcessorFlags.N))
             {
@@ -301,19 +301,19 @@ namespace W65C02S.CPU
             }
             else
             {
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
             }
         }
 
         // BRanch Always
-        private void BRA(byte instructionLength)
+        private void BRA()
         {
             var amount = (sbyte)(fetchedByte.Value + 2);
             IncrementPC(amount);
         }
 
         // BReaK instruction
-        private void BRK(byte instructionLength)
+        private void BRK()
         {
             //// save return address (for when IRQ resumes from BRK)
             //var retAddr = (PC + instructionLength);
@@ -334,11 +334,11 @@ namespace W65C02S.CPU
 
             //// now set Interupt flag
             //SetFlag(ProcessorFlags.I, true);
-            //IncrementPC(instructionLength);
+            //IncrementPC(currentInstruction.Length);
         }
 
         // Branch on oVerflow Clear (Pv=0)
-        private void BVC(byte instructionLength) 
+        private void BVC() 
         {
             if ( !IsFlagSet(ProcessorFlags.V))
             {
@@ -346,11 +346,11 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
         }
 
         // Branch on oVerflow Set (Pv=1)
-        private void BVS(byte instructionLength) 
+        private void BVS() 
         {
             if (IsFlagSet(ProcessorFlags.V))
             {
@@ -358,38 +358,38 @@ namespace W65C02S.CPU
                 PC = (ushort)(PC + amount);
             }
             else
-                IncrementPC(instructionLength);
+                IncrementPC(currentInstruction.Length);
         }
 
         // CLear Cary flag
-        private void CLC(byte instructionLength)
+        private void CLC()
         {
             SetFlag(ProcessorFlags.C, false);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // CLear Decimal mode
-        private void CLD(byte instructionLength) {
+        private void CLD() {
             SetFlag(ProcessorFlags.D, false);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         } 
 
         // CLear Interrupt disable bit
-        private void CLI(byte instructionLength)
+        private void CLI()
         {
             SetFlag(ProcessorFlags.I, false);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // CLear oVerflow flag
-        private void CLV(byte instructionLength) 
+        private void CLV() 
         {
             SetFlag(ProcessorFlags.V, false);
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // CoMPare memory and accumulator
-        private void CMP(byte instructionLength) 
+        private void CMP() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -409,11 +409,11 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.N, (result & 0x80) == 0x80);
             SetFlag(ProcessorFlags.C, (A >= operand));
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // ComPare memory and X register
-        private void CPX(byte instructionLength) 
+        private void CPX() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -433,11 +433,11 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.N, (result & 0x80) == 0x80);
             SetFlag(ProcessorFlags.C, (X >= operand));
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // ComPare memory and Y register
-        private void CPY(byte instructionLength) 
+        private void CPY() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -457,11 +457,11 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.N, (result & 0x80) == 0x80);
             SetFlag(ProcessorFlags.C, (X >= operand));
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // DECrement memory or accumulate by one
-        private void DEC(byte instructionLength) 
+        private void DEC() 
         {
             if (operandAddress.HasValue)
             {
@@ -477,29 +477,29 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // DEcrement X by one
-        private void DEX(byte instructionLength)
+        private void DEX()
         {
             X--;
             SetFlag(ProcessorFlags.Z, X == 0x00);
             SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // DEcrement Y by one
-        private void DEY(byte instructionLength)
+        private void DEY()
         {
             Y--;
             SetFlag(ProcessorFlags.Z, Y == 0x00);
             SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // "Exclusive OR" memory with accumulate
-        private void EOR(byte instructionLength) 
+        private void EOR() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -516,11 +516,11 @@ namespace W65C02S.CPU
 
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // INCrement memory or accumulator by one
-        private void INC(byte instructionLength)
+        private void INC()
         {
             if (operandAddress.HasValue)
             {
@@ -536,38 +536,38 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // INcrement X register by one
-        private void INX(byte instructionLength)
+        private void INX()
         {
             X++;
             SetFlag(ProcessorFlags.Z, X == 0x00);
             SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // INcrement Y register by one
-        private void INY(byte instructionLength)
+        private void INY()
         {
             Y++;
             SetFlag(ProcessorFlags.Z, Y == 0x00);
             SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // JuMP to new location
-        private void JMP(byte instructionLength)
+        private void JMP()
         {
             PC = operandAddress.Value;
         }
 
         // Jump to new location Saving Return (Jump to SubRoutine)
-        private void JSR(byte instructionLength)
+        private void JSR()
         {
             // save return address to stack, hi byte first then lo byte
-            var retAddr = (PC + instructionLength);
+            var retAddr = (PC + currentInstruction.Length);
             WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
             DecreaseSP();
 
@@ -579,7 +579,7 @@ namespace W65C02S.CPU
         }
 
         // LoaD Accumulator with memory
-        private void LDA(byte instructionLength)
+        private void LDA()
         {
             if (operandAddress.HasValue)
                 ReadValueFromAddress(operandAddress.Value);
@@ -589,11 +589,11 @@ namespace W65C02S.CPU
                 SetFlag(ProcessorFlags.Z, A == 0x00);
                 SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
             }
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // LoaD the X register with memory
-        private void LDX(byte instructionLength)
+        private void LDX()
         {
             if (operandAddress.HasValue)
                 ReadValueFromAddress(operandAddress.Value);
@@ -603,11 +603,11 @@ namespace W65C02S.CPU
                 SetFlag(ProcessorFlags.Z, X == 0x00);
                 SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
             }
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // LoaD the Y register with memory
-        private void LDY(byte instructionLength)
+        private void LDY()
         {
             if (operandAddress.HasValue)
                 ReadValueFromAddress(operandAddress.Value);
@@ -617,11 +617,11 @@ namespace W65C02S.CPU
                 SetFlag(ProcessorFlags.Z, Y == 0x00);
                 SetFlag(ProcessorFlags.N, (Y & 0x80) == 0x80);
             }
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Logical Shift one bit Right memory or accumulator
-        private void LSR(byte instructionLength) 
+        private void LSR() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -640,17 +640,17 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.Z, (A == 0));
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // No OPeration
-        private void NOP(byte instructionLength)
+        private void NOP()
         {
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // "OR" memory with Accumulator
-        private void ORA(byte instructionLength) 
+        private void ORA() 
         {
             byte operand = 0x00;
             if (operandAddress.HasValue)
@@ -668,83 +668,83 @@ namespace W65C02S.CPU
             SetFlag(ProcessorFlags.Z, (A == 0));
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
             
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PusH Accumulator on stack
-        private void PHA(byte instructionLength)
+        private void PHA()
         {
             WriteValueToAddress(SP, A);
             DecreaseSP();
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PusH Processor status on stack
-        private void PHP(byte instructionLength) 
+        private void PHP() 
         {
             WriteValueToAddress(SP, (byte)ST);
             DecreaseSP();
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // PusH X register on stack
-        private void PHX(byte instructionLength)
+        private void PHX()
         {
             WriteValueToAddress(SP, X);
             DecreaseSP();
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PusH Y register on stack
-        private void PHY(byte instructionLength)
+        private void PHY()
         {
             WriteValueToAddress(SP, Y);
             DecreaseSP();
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PuLl Accumulator from stack
-        private void PLA(byte instructionLength)
+        private void PLA()
         {
             IncreaseSP();
             ReadValueFromAddress(SP);
             A = fetchedByte.Value;
             WriteValueToAddress(SP, 0x00); //clear that cell
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PuLl Processor status from stack
-        private void PLP(byte instructionLength) 
+        private void PLP() 
         {
             IncreaseSP();
             ReadValueFromAddress(SP);
             ST = (ProcessorFlags)fetchedByte.Value;
             WriteValueToAddress(SP, 0x00); //clear that cell
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PuLl X register from stack
-        private void PLX(byte instructionLength)
+        private void PLX()
         {
             IncreaseSP();
             ReadValueFromAddress(SP);
             X = fetchedByte.Value;
             WriteValueToAddress(SP, 0x00); //clear that cell
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // PuLl Y register from stack
-        private void PLY(byte instructionLength)
+        private void PLY()
         {
             IncreaseSP();
             ReadValueFromAddress(SP);
             Y = fetchedByte.Value;
             WriteValueToAddress(SP, 0x00); //clear that cell
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Reset Memory Bit (M => 0)
-        private void RMB(byte instructionLength) 
+        private void RMB() 
         {
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
@@ -781,11 +781,11 @@ namespace W65C02S.CPU
             fetchedByte = ((byte)(fetchedByte.Value ^ mask));
             WriteValueToAddress(operandAddress.Value, fetchedByte.Value);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // ROtate one bit Left memory or accumulator
-        private void ROL(byte instructionLength) 
+        private void ROL() 
         {
             // Bit 0 is filled with the current value of the carry flag, whilst the old bit 7 becomes the new carry flag value
             ushort operand = 0x00;
@@ -816,11 +816,11 @@ namespace W65C02S.CPU
                 SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
             }
             
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // ROtate one bit Right memory or accumulator
-        private void ROR(byte instructionLength) 
+        private void ROR() 
         {
             // Bit 7 is filled with the current value of the carry flag whilst the old bit 0 becomes the new carry flag value.
             ushort operand = 0x00;
@@ -852,11 +852,11 @@ namespace W65C02S.CPU
                 SetFlag(ProcessorFlags.C, c);
                 SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
             }
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // ReTurn from Interrupt
-        private void RTI(byte instructionLength) 
+        private void RTI() 
         {
             ReadValueFromAddress(SP);
             ST = (ProcessorFlags)fetchedByte.Value;
@@ -878,7 +878,7 @@ namespace W65C02S.CPU
         }
 
         // ReTurn from Subroutine
-        private void RTS(byte instructionLength)
+        private void RTS()
         {
             // retrieve return address from stack, lo byte first then hi byte
             IncreaseSP();
@@ -893,31 +893,31 @@ namespace W65C02S.CPU
         }
 
         // SuBtract memory from accumulator with borrow (Carry bit)
-        private void SBC(byte instructionLength) { throw new NotImplementedException(); }  // IncrementPC(instructionLength); }
+        private void SBC() { throw new NotImplementedException(); }  // IncrementPC(currentInstruction.Length); }
 
         // SEt Carry
-        private void SEC(byte instructionLength)
+        private void SEC()
         {
             SetFlag(ProcessorFlags.C, true);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // SEt Decimal mode
-        private void SED(byte instructionLength)
+        private void SED()
         {
             SetFlag(ProcessorFlags.D, true);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // SEt Interrupt disable status
-        private void SEI(byte instructionLength)
+        private void SEI()
         {
             SetFlag(ProcessorFlags.I, true);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Set Memory Bit (M => 1)
-        private void SMB(byte instructionLength) 
+        private void SMB() 
         {
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
@@ -955,64 +955,64 @@ namespace W65C02S.CPU
             val = ((byte)(val ^ mask));
             WriteValueToAddress(operandAddress.Value, val);
 
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // STore Accumulator in memory
-        private void STA(byte instructionLength)
+        private void STA()
         {
             WriteValueToAddress(operandAddress.Value, A);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // STore the X register in memory
-        private void STX(byte instructionLength)
+        private void STX()
         {
             WriteValueToAddress(operandAddress.Value, X);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // STore the Y register in memory
-        private void STY(byte instructionLength)
+        private void STY()
         {
             WriteValueToAddress(operandAddress.Value, Y);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // SToP mode
-        private void STP(byte instructionLength) {
+        private void STP() {
             //SetFlag(ProcessorFlags.B, true);
             stopCmdEffected = true;
         }
 
         // STore Zero in memory
-        private void STZ(byte instructionLength) {
+        private void STZ() {
 
             WriteValueToAddress(operandAddress.Value, 0x00);
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Transfer the Accumulator to the X register
-        private void TAX(byte instructionLength) 
+        private void TAX() 
         {
             X = A;
             SetFlag(ProcessorFlags.Z, X == 0);
             SetFlag(ProcessorFlags.N, ((X & 0x80) == 0x80));
 
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Transfer the Accumulator to the Y register
-        private void TAY(byte instructionLength) 
+        private void TAY() 
         {
             Y = A;
             SetFlag(ProcessorFlags.Z, Y == 0);
             SetFlag(ProcessorFlags.N, ((Y & 0x80) == 0x80));
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Test and Reset memory Bit
-        private void TRB(byte instructionLength) 
+        private void TRB() 
         {
             ReadValueFromAddress(operandAddress.Value);
             var val = fetchedByte.Value;
@@ -1020,11 +1020,11 @@ namespace W65C02S.CPU
             val = ((byte)(val & ~A));
             WriteValueToAddress(operandAddress.Value, val);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Test and Set memory Bit
-        private void TSB(byte instructionLength) 
+        private void TSB() 
         {
             ReadValueFromAddress(operandAddress.Value);
             var val = fetchedByte.Value;
@@ -1032,52 +1032,52 @@ namespace W65C02S.CPU
             val = ((byte)(val & A));
             WriteValueToAddress(operandAddress.Value, val);
 
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
 
         // Transfer the Stack pointer to the X register
-        private void TSX(byte instructionLength)
+        private void TSX()
         {
             X = ((byte)(SP & 0xFF));
 
             SetFlag(ProcessorFlags.Z, X == 0x00);
             SetFlag(ProcessorFlags.N, (X & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Transfer the X register to the Accumulator
-        private void TXA(byte instructionLength) 
+        private void TXA() 
         {
             A = X;
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Transfer the X register to the Stack pointer register
-        private void TXS(byte instructionLength)
+        private void TXS()
         {
             SP = ((ushort)(0x0100 | X));
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // Transfer Y register to the Accumulator
-        private void TYA(byte instructionLength) 
+        private void TYA() 
         {
             A = Y;
             
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
 
-            IncrementPC(instructionLength);
+            IncrementPC(currentInstruction.Length);
         }
 
         // WAit for Interrupt
-        private void WAI(byte instructionLength) {
+        private void WAI() {
             stopCmdEffected = true;
             SetFlag(ProcessorFlags.B, true);
-            IncrementPC(instructionLength); 
+            IncrementPC(currentInstruction.Length); 
         }
     }
 }
