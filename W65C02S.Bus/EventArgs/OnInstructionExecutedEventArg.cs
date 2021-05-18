@@ -4,7 +4,7 @@ using W65C02S.CPU.Models;
 
 namespace W65C02S.CPU
 {
-    public class InstructionDisplayEventArg
+    public class OnInstructionExecutedEventArg
     {
         public Instruction CurrentInstruction { get; set; }
         public string DecodedInstruction { get; set; }
@@ -16,7 +16,5 @@ namespace W65C02S.CPU
         public ushort PC { get; set; }
         public ushort SP { get; set; }
         public double ClockTicks { get; set; }
-
-
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using W65C02S.Bus;
 using W65C02S.Bus.EventArgs;
 using W65C02S.CPU;
@@ -18,6 +19,7 @@ namespace W65C02S.Engine
         private RunMode mode = RunMode.Debug;
         private readonly Bus.Bus bus;
         private CPUCore cpu;
+        private List<ushort> BreakPoints;
 
         public RunMode Mode
         {
@@ -33,10 +35,13 @@ namespace W65C02S.Engine
 
         public Emulator(Bus.Bus bus)
         {
+            BreakPoints = new List<ushort>();
             this.bus = bus;
             cpu = new CPUCore(this.bus);
+            bus.Subscribe<ExceptionEventArg>(OnError);
         }
 
+        
         public byte ReadMemoryLocation(ushort address)
         {
             
@@ -82,22 +87,22 @@ namespace W65C02S.Engine
         {
             mode = RunMode.Run;
 
-            while ((cpu.ST & Bus.ProcessorFlags.B) != Bus.ProcessorFlags.B && mode == RunMode.Run)
+            while (mode == RunMode.Run)
             {
-                //if (BreakPoints.Contains(PC))
-                //{
-                //    if (OnBreakPoint != null)
-                //    {
-                //        var e = new OutputEventArg
-                //        {
-                //            Address = PC
-                //        };
-                //        OnBreakPoint.Invoke(this, e);
-                //    }
-                //    return;
-                //}
-                //else
-                cpu.Step();
+                if (BreakPoints.Contains(cpu.PC))
+                {
+                    mode = RunMode.Debug;
+                    var e = new ExceptionEventArg() { ErrorMessage = $"Breakpoint ${cpu.PC:X4} hit....".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
+                    bus?.Publish(e);
+                    return;
+                }
+                else
+                    cpu.Step();
+            }
+            if (cpu.IsFlagSet(ProcessorFlags.B) && !cpu.IsFlagSet(ProcessorFlags.I))
+            {
+                var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with BRK/WAI instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
+                bus?.Publish(e);
             }
         }
 
@@ -111,9 +116,14 @@ namespace W65C02S.Engine
             return ((cpu.ST & flag) == flag);
         }
 
+        private void OnError(ExceptionEventArg obj)
+        {
+            mode = RunMode.Debug;
+        }
+
         public void Dispose()
         {
-            
+            bus.UnSubscribe<ExceptionEventArg>(OnError);
         }
 
         public void LoadROM(byte[] data)
@@ -125,6 +135,21 @@ namespace W65C02S.Engine
             bus.Publish(arg);
         }
 
-        
+        public void AddRemoveBreakPoint(ushort breakPoint)
+        {
+            if (BreakPoints.Contains(breakPoint))
+                BreakPoints.Remove(breakPoint);
+            else
+                BreakPoints.Add(breakPoint);
+        }
+        public List<ushort> GetBreakPoints()
+        {
+            return BreakPoints;
+        }
+
+        public void SetPCValue(ushort inputValue)
+        {
+            cpu.PC = inputValue;
+        }
     }
 }

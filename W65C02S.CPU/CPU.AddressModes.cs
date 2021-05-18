@@ -96,8 +96,8 @@ namespace W65C02S.CPU
         // r
         private void ProgramCounterRelative()
         {
-            operandAddress = null;
-            fetchedByte = currentInstruction.Operand1 ?? 0x00;
+            fetchedByte = currentInstruction.Operand1;
+            operandAddress = currentInstruction.Operand2; 
         }
 
         // s

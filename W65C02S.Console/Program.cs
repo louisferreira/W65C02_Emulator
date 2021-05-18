@@ -21,6 +21,7 @@ namespace W65C02S.Console
         private const int clientAreaHeight = 34;
         
         private static int lastInstructionPos = 0;
+        private static ushort currentStackPointer = 0;
 
         private static bool binaryFileLoaded = false;
         private static bool emulatorStarted = false;
@@ -31,6 +32,8 @@ namespace W65C02S.Console
         private static ROM.ROM rom;
         private static RAM.RAM ram;
         private static W6522_Via ioDevice;
+        private static string lastROMFileLoaded = string.Empty;
+
         static void Main(string[] args)
         {
             System.Console.SetWindowSize(maxColumns, maxRows);
@@ -41,12 +44,14 @@ namespace W65C02S.Console
             using (bus = new Bus.Bus())
             {
                 emulator = new Emulator(bus);
-                ram = new RAM.RAM(bus, 0, 0x7FFF, DataBusMode.ReadWrite);
-                ioDevice = new W6522_Via(bus, 0x8000, 0x8FFF, DataBusMode.ReadWrite);
-                rom = new ROM.ROM(bus, 0x9000, 0xFFFF, DataBusMode.Read);
+                //ram = new RAM.RAM(bus, 0, 0x7FFF, DataBusMode.ReadWrite);
+                //ioDevice = new W6522_Via(bus, 0x8000, 0x8FFF, DataBusMode.ReadWrite);
+                //rom = new ROM.ROM(bus, 0x9000, 0xFFFF, DataBusMode.Read);
+                rom = new ROM.ROM(bus, 0x0000, 0xFFFF, DataBusMode.ReadWrite);
 
                 bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
-                bus.Subscribe<InstructionDisplayEventArg>(OnInstructionExecuted);
+                bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+                bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
                 bus.Subscribe< ExceptionEventArg>(OnError);
 
                 System.Console.CursorVisible = false;
@@ -55,7 +60,8 @@ namespace W65C02S.Console
                 System.Console.Clear();
 
                 bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
-                bus.UnSubscribe<InstructionDisplayEventArg>(OnInstructionExecuted);
+                bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+                bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
                 bus.UnSubscribe<ExceptionEventArg>(OnError);
 
                 emulator.Dispose();
@@ -75,9 +81,15 @@ namespace W65C02S.Console
             e.Cancel = true;
         }
 
-        private static void OnInstructionExecuted(InstructionDisplayEventArg e)
+
+        private static void OnInstructionExecuting(OnInstructionExecutingEventArg e)
         {
-            ShowLastInstruction(e.DecodedInstruction, e.RawData);
+            ShowLastInstruction(e.DecodedInstruction, e.RawData, e.PC);
+            //DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
+        }
+        private static void OnInstructionExecuted(OnInstructionExecutedEventArg e)
+        {
+            //ShowLastInstruction(e.DecodedInstruction, e.RawData);
             DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
         }
 
@@ -211,27 +223,47 @@ namespace W65C02S.Console
             System.Console.WriteLine();
             System.Console.WriteLine("    Press Esc to return to  main menu.");
             System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
-            System.Console.Write("Enter full path to file:> ");
-        WaitForInput:
+            if(string.IsNullOrEmpty(lastROMFileLoaded))
+                System.Console.Write("Enter full path to file:> ");
+            else
+                System.Console.Write($"Enter full path to file: [{lastROMFileLoaded}]> ");
+
+            WaitForInput:
             binaryFileLoaded = false;
             System.Console.CursorVisible = true;
             var input = System.Console.ReadKey();
-            if (input.Key == ConsoleKey.Escape || input.Key == ConsoleKey.Enter)
+            if (input.Key == ConsoleKey.Escape)
             {
                 System.Console.CursorVisible = false;
                 return;
             }
+            if(input.Key == ConsoleKey.Enter && string.IsNullOrEmpty(lastROMFileLoaded))
+            {
+                System.Console.CursorVisible = false;
+                return;
+            }
+
+            string filePath = "";
+            char? capturedChar = default;
+            if ( !string.IsNullOrEmpty(lastROMFileLoaded))
+            {
+                capturedChar = null;
+                filePath = lastROMFileLoaded;
+            }
+            else
+            {
+                capturedChar = input.KeyChar;
+                filePath = System.Console.ReadLine();
+            }
             
-            var capturedChar = input.KeyChar;
-            var filePath = System.Console.ReadLine();
             System.Console.CursorVisible = false;
             if (string.IsNullOrEmpty(filePath))
                 return;
 
-            filePath = capturedChar + filePath;
+            filePath = $"{capturedChar}{filePath}";
             //// debug
             if (filePath == "xxx")
-                filePath = "C:\\temp\\c02bios.bin";
+                filePath = "C:\\temp\\65c02_extended_opcodes_test.bin";
             //// debug
             if (!System.IO.File.Exists(filePath))
             {
@@ -243,7 +275,7 @@ namespace W65C02S.Console
             var data = System.IO.File.ReadAllBytes(filePath);
 
 
-            if (data.Length > 32768)
+            if (data.Length > rom.EndAddress)
             {
                 System.Console.WriteLine($"Binary file is too big. ROM size is 32768 bytes, and this file is {data.Length} bytes");
                 System.Console.Write("Enter full path to file:> ");
@@ -252,6 +284,7 @@ namespace W65C02S.Console
 
             emulator.LoadROM(data);
             binaryFileLoaded = true;
+            lastROMFileLoaded = filePath;
             System.Console.WriteLine($"Loaded {data.Length} bytes into ROM....");
             System.Console.Write("Press Enter to return to main menu :>");
             System.Console.ReadLine();
@@ -316,6 +349,7 @@ namespace W65C02S.Console
         {
             var inputRegex = "^[0-9A-Fa-f]{2,4}$";
             var inputDisplay = "View address location [FA],[AFB9]: >$";
+            ClearClientArea(false, 2);
         Start:
             System.Console.CursorVisible = true;
             System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
@@ -363,42 +397,12 @@ namespace W65C02S.Console
                 }
             }
         }
-        //private static void Monitor_DisplayRow(int left = 0, int topOffset = 0)
-        //{
-        //    var inputRegex = "^[0-9A-Fa-f]{4}$";
-        //    var inputDisplay = "View address row [AFB9]: >$";
-        //Start:
-        //    System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
-        //    System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-        //    System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
-        //    var input = System.Console.ReadLine();
-        //    if (String.IsNullOrEmpty(input))
-        //    {
-        //        return;
-        //    }
-
-        //    if (!Regex.IsMatch(input, inputRegex))
-        //    {
-        //        DisplayError("Invalid address. Requires 4 Hex digits.");
-        //        goto Start;
-        //    }
-        //    input = input.Substring(0, 3) + "0";
-
-        //    ClearError();
-        //    Monitor_DisplayHeader(left, topOffset);
-        //    var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
-        //    System.Console.CursorLeft = left;
-        //    System.Console.Write($"${location:X4}   : ");
-        //    for (ushort index = location; index < location + 16; index++)
-        //    {
-        //        System.Console.Write($"{emulator.ReadMemoryLocation(index):X2} ");
-        //    }
-
-        //}
+        
         private static void Monitor_DisplayPage(int left = 0, int topOffset = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{2}$";
             var inputDisplay = "View page [AF]: >$";
+            ClearClientArea(false, 2);
         Start:
             System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
@@ -428,9 +432,15 @@ namespace W65C02S.Console
 
                 for (int col = index; col < (index + 16); col++)
                 {
+                    if (col == currentStackPointer)
+                        System.Console.ForegroundColor = ConsoleColor.White;
+                    else
+                        System.Console.ForegroundColor = ConsoleColor.Green;
+
                     System.Console.Write($"{emulator.ReadMemoryLocation((ushort)col):X2} ");
                 }
-
+                
+                System.Console.ForegroundColor = ConsoleColor.Green;
                 System.Console.CursorTop++;
                 System.Console.CursorLeft = left;
             }
@@ -439,6 +449,7 @@ namespace W65C02S.Console
         {
             var inputRegex = "^[0-9A-Fa-f]{2,4}$";
             var inputDisplay = "Edit address location [EA],[AFB9]: >$";
+            ClearClientArea(false, 2);
         Start:
             System.Console.CursorVisible = true;
             System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
@@ -526,13 +537,14 @@ namespace W65C02S.Console
             System.Console.SetCursorPosition(leftCol, 1); System.Console.Write("    F5 = Run (Ctrl+Break to break into Debug)");
             System.Console.SetCursorPosition(leftCol, 2); System.Console.Write("    F9 = Add/Remove Breakpoint");
             System.Console.SetCursorPosition(leftCol, 3); System.Console.Write("   F10 = Step next Instruction");
-            System.Console.SetCursorPosition(leftCol ,4); System.Console.Write("   F12 = Reset CPU");
-            System.Console.SetCursorPosition(leftCol, 5); System.Console.Write("    F6 = Send IRQ Signal");
+            System.Console.SetCursorPosition(leftCol, 4); System.Console.Write("    F8 = Set Program Counter Value");
+            System.Console.SetCursorPosition(leftCol ,5); System.Console.Write("   F12 = Reset CPU");
             System.Console.SetCursorPosition(leftCol, 6); System.Console.Write("   Esc = Return to main menu");
 
             System.Console.SetCursorPosition(rightCol, 1); System.Console.Write("F1 = View Memory Location");
             System.Console.SetCursorPosition(rightCol, 2); System.Console.Write("F2 = View Memory Page");
             System.Console.SetCursorPosition(rightCol, 3); System.Console.Write("F3 = Edit Memory Location");
+            System.Console.SetCursorPosition(rightCol, 4); System.Console.Write("F6 = Send IRQ Signal");
             System.Console.SetCursorPosition(rightCol, 5); System.Console.Write("F7 = Send NMI Signal");
 
         Reset:
@@ -565,7 +577,6 @@ namespace W65C02S.Console
             {
                 showDeviceActivity = false;
                 System.Console.CursorVisible = true;
-                //ClearClientArea(false, 2);
                 Monitor_DisplayPage(maxColumns / 2, 2);
                 System.Console.CursorVisible = false;
                 goto WaitForInput;
@@ -573,7 +584,6 @@ namespace W65C02S.Console
             if (input.Key == ConsoleKey.F3)
             {
                 showDeviceActivity = false;
-                //ClearClientArea(false, 2);
                 System.Console.CursorVisible = true;
                 Monitor_EditLocation(maxColumns / 2, 2);
                 System.Console.CursorVisible = false;
@@ -594,9 +604,14 @@ namespace W65C02S.Console
             {
                 emulator.SendNMI();
             }
+            if (input.Key == ConsoleKey.F8)
+            {
+                EditPCValue();
+                goto WaitForInput;
+            }
             if (input.Key == ConsoleKey.F9)
             {
-                
+                DisplayBreakPoints();
                 goto WaitForInput;
             }
             if (input.Key == ConsoleKey.F10)
@@ -638,6 +653,8 @@ namespace W65C02S.Console
 
         private static void DisplayRegisters(byte A, byte X, byte Y, byte ST, ushort SP, ushort PC, double clockTicks)
         {
+            currentStackPointer = SP;
+
             var curLeft = System.Console.CursorLeft;
             var curTop = System.Console.CursorTop;
             System.Console.ForegroundColor = ConsoleColor.DarkYellow;
@@ -704,6 +721,92 @@ namespace W65C02S.Console
             System.Console.ForegroundColor = curreColor;
         }
 
+
+        private static void DisplayBreakPoints()
+        {
+            var left = maxColumns / 2;
+            var topOffset = 2;
+            var inputRegex = "^[0-9A-Fa-f]{4}$";
+            var inputDisplay = "Add / Remove PC Address [AFB9]: >$";
+
+            ClearClientArea(false, 2);
+
+            // display list
+            System.Console.SetCursorPosition(left, clientAreaStart + topOffset + 1);
+            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
+
+            foreach (var bp in emulator.GetBreakPoints())
+            {
+                System.Console.CursorLeft = left;
+                System.Console.WriteLine($"[${bp:X4}]");
+            }
+            
+
+        Start:
+            System.Console.CursorVisible = true;
+            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
+            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
+            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
+            var input = System.Console.ReadLine();
+            System.Console.CursorVisible = false;
+            if (String.IsNullOrEmpty(input))
+            {
+                return;
+            }
+
+            if (!Regex.IsMatch(input, inputRegex))
+            {
+                DisplayError("Invalid address. Requires 4 Hex digits.");
+                goto Start;
+            }
+
+            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            emulator.AddRemoveBreakPoint(inputValue);
+
+            // display new list
+            System.Console.SetCursorPosition(left, clientAreaStart + topOffset + 1);
+            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
+
+            foreach (var bp in emulator.GetBreakPoints())
+            {
+                System.Console.CursorLeft = left;
+                System.Console.WriteLine($"[${bp:X4}]");
+            }
+            System.Console.CursorLeft = left;
+            System.Console.WriteLine($"".PadRight((maxColumns / 2) - 2, ' ')); // clear the last entry off the screen
+
+        }
+
+        private static void EditPCValue()
+        {
+            var left = maxColumns / 2;
+            var topOffset = 2;
+            var inputRegex = "^[0-9A-Fa-f]{4}$";
+            var inputDisplay = "Set PC Address [AFB9]: >$";
+
+            ClearClientArea(false, 2);
+        Start:
+            System.Console.CursorVisible = true;
+            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
+            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
+            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
+            var input = System.Console.ReadLine();
+            System.Console.CursorVisible = false;
+            if (String.IsNullOrEmpty(input))
+            {
+                return;
+            }
+
+            if (!Regex.IsMatch(input, inputRegex))
+            {
+                DisplayError("Invalid address. Requires 4 Hex digits.");
+                goto Start;
+            }
+
+            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            emulator.SetPCValue(inputValue);
+        }
+
         private static void UpdateDeviceActivity(AddressBusEventArgs sender)
         {
             if (!emulatorStarted)
@@ -735,7 +838,7 @@ namespace W65C02S.Console
             
         }
 
-        private static void ShowLastInstruction(string instruction, string rawData)
+        private static void ShowLastInstruction(string instruction, string rawData, ushort PC)
         {
             
             if (lastInstructionPos > clientAreaHeight)
@@ -752,7 +855,7 @@ namespace W65C02S.Console
             }
 
             System.Console.SetCursorPosition(0, lastInstructionPos);
-            var txt = $" [{rawData.PadRight(8, ' ')}] {instruction}";
+            var txt = $" ${PC:X4}: [{rawData.PadRight(8, ' ')}] {instruction}";
             if (txt.Length > (maxColumns / 2))
                 txt = txt.Substring(0, (maxColumns / 2));
 
