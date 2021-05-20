@@ -7,11 +7,13 @@ using W65C02S.Engine;
 using W65C02S.InputOutput.Devices;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace W65C02S.Console
 {
     class Program
     {
+        private static SemaphoreSlim semaphore;
         private static Process p;
         private const int maxColumns = 120;
         private const int maxRows = 40;
@@ -36,6 +38,7 @@ namespace W65C02S.Console
 
         static void Main(string[] args)
         {
+            semaphore = new SemaphoreSlim(1, 1);
             SetupMenuStructure();
 
             System.Console.SetWindowSize(maxColumns, maxRows);
@@ -278,6 +281,7 @@ namespace W65C02S.Console
         Reset:
             System.Console.Clear();
             CreateSubMenuHeading("Memory Monitor");
+            showDeviceActivity = false;
             var row = 1;
             var right = System.Console.BufferWidth / 2;
             foreach (var menu in subMenu.Items)
@@ -556,7 +560,7 @@ namespace W65C02S.Console
             }
 
         WaitForInput:
-            showDeviceActivity = true;
+            //showDeviceActivity = true;
             var input = System.Console.ReadKey(true);
 
             var selected = subMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
@@ -576,8 +580,11 @@ namespace W65C02S.Console
                     ClearClientArea(false, topOffset + subMenu.NumberOfLines + 4);
                 }
 
+                showDeviceActivity = selected.MenuAction == StepNextInstruction;
 
+                semaphore.Wait();
                 selected.MenuAction(left, topOffset + subMenu.NumberOfLines + 4);
+                semaphore.Release();
 
                 if (selected.ChildMenuItems != null)
                     subMenu = selected.ChildMenuItems;
@@ -602,10 +609,10 @@ namespace W65C02S.Console
             ClearClientArea(false, subMenu.NumberOfLines + 3);
         }
 
-        private static void StepNextInstruction(int left = 0, int topOffset = 0)
+        private async static void StepNextInstruction(int left = 0, int topOffset = 0)
         {
             ClearActivityArea();
-            emulator.Step();
+            await emulator.Step();
         }
 
         private static void SendNMISignal(int left = 0, int topOffset = 02)
@@ -807,11 +814,11 @@ namespace W65C02S.Console
             if (lastInstructionPos > clientAreaHeight)
             {
                 var sourceLeft = 0;
-                var sourceTop = topOffset + 3;
+                var sourceTop = topOffset + 4;
                 var sourceWidth = (maxColumns / 2) - 1;
                 var sourceHeight = clientAreaHeight - sourceTop + 1;
                 var targetLeft = 0;
-                var targetTop = topOffset + 2;
+                var targetTop = topOffset + 3;
 
                 System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
                 lastInstructionPos = clientAreaHeight;
@@ -829,11 +836,15 @@ namespace W65C02S.Console
 
         private static void OnInstructionExecuting(OnInstructionExecutingEventArg e)
         {
+            semaphore.Wait();
             ShowLastInstruction(e.DecodedInstruction, e.RawData, e.PC);
+            semaphore.Release();
         }
         private static void OnInstructionExecuted(OnInstructionExecutedEventArg e)
         {
+            semaphore.Wait();
             DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
+            semaphore.Release();
         }
 
         #endregion
@@ -912,7 +923,9 @@ namespace W65C02S.Console
         }
         private static void OnError(ExceptionEventArg e)
         {
+            semaphore.Wait();
             DisplayError(e.ErrorMessage, e.ExceptionType);
+            semaphore.Release();
         }
         private static void DisplayError(string errorMsg, ExceptionType exceptionType = ExceptionType.Error)
         {
@@ -960,9 +973,11 @@ namespace W65C02S.Console
         }
         private static void OnAddressChanged(AddressBusEventArgs arg)
         {
+            semaphore.Wait();
             UpdateAddressDisplay(arg);
             if (showDeviceActivity)
                 UpdateDeviceActivity(arg);
+            semaphore.Release();
         }
         private static void CreateSubMenuHeading(string headingText)
         {

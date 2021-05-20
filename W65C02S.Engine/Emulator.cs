@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using W65C02S.Bus;
 using W65C02S.Bus.EventArgs;
 using W65C02S.CPU;
-
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace W65C02S.Engine
 {
@@ -64,13 +65,13 @@ namespace W65C02S.Engine
             bus.Publish(arg);
         }
 
-        public void Reset()
+        public Task Reset()
         {
-            cpu.Reset();
+            return Task.Factory.StartNew(() => cpu.Reset());
         }
-        public void Step()
+        public Task Step()
         {
-            cpu.Step();
+            return Task.Factory.StartNew(() => cpu.Step());
         }
 
         public void SendIRQ()
@@ -83,22 +84,24 @@ namespace W65C02S.Engine
             bus.Publish(new InteruptRequestEventArgs { InteruptType = InteruptType.NMI });
         }
 
-        public void Run()
+        public Task Run()
         {
             mode = RunMode.Run;
 
-            while (mode == RunMode.Run)
-            {
-                if (BreakPoints.Contains(cpu.PC))
+            return Task.Factory.StartNew(() => {
+                while (mode == RunMode.Run)
                 {
-                    mode = RunMode.Debug;
-                    var e = new ExceptionEventArg() { ErrorMessage = $"Breakpoint ${cpu.PC:X4} hit....".PadRight(100, ' '), ExceptionType = ExceptionType.Debug };
-                    bus?.Publish(e);
-                    return;
+                    if (BreakPoints.Contains(cpu.PC))
+                    {
+                        mode = RunMode.Debug;
+                        var e = new ExceptionEventArg() { ErrorMessage = $"Breakpoint ${cpu.PC:X4} hit....".PadRight(100, ' '), ExceptionType = ExceptionType.Debug };
+                        bus?.Publish(e);
+                        break;
+                    }
+                    else
+                        cpu.Step();
                 }
-                else
-                    cpu.Step();
-            }
+            });
         }
 
         public void ClearBreakFlag()

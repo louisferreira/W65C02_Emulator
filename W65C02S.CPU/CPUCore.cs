@@ -13,6 +13,7 @@ namespace W65C02S.CPU
 {
     public partial class CPUCore : IDisposable
     {
+        private SemaphoreSlim semaphore;
         private ulong clockTicks = 0;           // 0 to 18,446,744,073,709,551,615
         private byte? fetchedByte;
         private ushort? operandAddress;
@@ -63,6 +64,7 @@ namespace W65C02S.CPU
 
         public CPUCore(Bus.Bus bus)
         {
+            semaphore = new SemaphoreSlim(1, 1);
             this.bus = bus;
             bus?.Subscribe<InteruptRequestEventArgs>(OnInteruptRequest);
             Initialise();
@@ -115,7 +117,7 @@ namespace W65C02S.CPU
         }
         private void Execute()
         {
-
+            semaphore.Wait();
             if (interuptRequested)
             {
                 if (interuptMasked)
@@ -177,7 +179,7 @@ namespace W65C02S.CPU
                 var e = new ExceptionEventArg() { ErrorMessage = $"Unknown instruction: ${fetchedByte:X2}".PadRight(100, ' ')};
                 bus?.Publish(e);
             }
-
+            semaphore.Release();
         }
         public void Execute(Instruction newInstruction)
         {
