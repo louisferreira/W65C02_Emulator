@@ -21,7 +21,7 @@ namespace W65C02S.ROM
                 throw new InvalidOperationException($"Attempting to load ROM with to large a data size. ROM size is {memory.Length} bytes, and data load size is {arg.Data.Length} bytes.");
             }
 
-            var offset = memory.Length - arg.Data.Length;
+            var offset = arg.UseOffset ? memory.Length - arg.Data.Length : 0;
             for (int index = 0; index < arg.Data.Length; index++)
             {
                 memory[offset + index] = arg.Data[index];

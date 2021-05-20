@@ -5,9 +5,8 @@ using W65C02S.Bus;
 using W65C02S.CPU;
 using W65C02S.Engine;
 using W65C02S.InputOutput.Devices;
-using W65C02S.MemoryMappedDevice;
-using W65C02S.RAM;
-using W65C02S.ROM;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace W65C02S.Console
 {
@@ -17,9 +16,8 @@ namespace W65C02S.Console
         private const int maxColumns = 120;
         private const int maxRows = 40;
 
-        private const int clientAreaStart = 8;
         private const int clientAreaHeight = 34;
-        
+
         private static int lastInstructionPos = 0;
         private static ushort currentStackPointer = 0;
 
@@ -33,9 +31,13 @@ namespace W65C02S.Console
         private static RAM.RAM ram;
         private static W6522_Via ioDevice;
         private static string lastROMFileLoaded = string.Empty;
+        private static MenuCollection mainMenu;
+        private static MenuCollection subMenu;
 
         static void Main(string[] args)
         {
+            SetupMenuStructure();
+
             System.Console.SetWindowSize(maxColumns, maxRows);
             System.Console.SetBufferSize(maxColumns, maxRows);
             System.Console.Title = "W65C02 Emulator";
@@ -52,20 +54,31 @@ namespace W65C02S.Console
                 bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
                 bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
                 bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-                bus.Subscribe< ExceptionEventArg>(OnError);
+                bus.Subscribe<ExceptionEventArg>(OnError);
 
                 System.Console.CursorVisible = false;
-                DisplayMainMenu();
+                try
+                {
+                    DisplayMainMenu();
+                }
+                catch (Exception ex)
+                {
+                    DisplayError(ex.Message, ExceptionType.Error);
+                    System.Console.ReadKey();
+                }
+                finally
+                {
+                    System.Console.Clear();
 
-                System.Console.Clear();
+                    bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+                    bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+                    bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+                    bus.UnSubscribe<ExceptionEventArg>(OnError);
 
-                bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
-                bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-                bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-                bus.UnSubscribe<ExceptionEventArg>(OnError);
-
-                emulator.Dispose();
-                bus.Dispose();
+                    emulator.Dispose();
+                    bus.Dispose();
+                }
+                
             }
 
             if (p != null)
@@ -74,161 +87,106 @@ namespace W65C02S.Console
             System.Console.WriteLine("Bye!");
         }
 
-        private static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
-        {
-            emulator.Mode = RunMode.Debug;
-            showDeviceActivity = true;
-            e.Cancel = true;
-        }
-
-
-        private static void OnInstructionExecuting(OnInstructionExecutingEventArg e)
-        {
-            ShowLastInstruction(e.DecodedInstruction, e.RawData, e.PC);
-            //DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
-        }
-        private static void OnInstructionExecuted(OnInstructionExecutedEventArg e)
-        {
-            //ShowLastInstruction(e.DecodedInstruction, e.RawData);
-            DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
-        }
-
-        private static void OnError(ExceptionEventArg e)
-        {
-            DisplayError(e.ErrorMessage, e.ExceptionType);
-        }
-        private static void DisplayError(string errorMsg, ExceptionType exceptionType = ExceptionType.Error)
-        {
-            var curLeft = System.Console.CursorLeft;
-            var curTop = System.Console.CursorTop;
-            var curreColor = System.Console.ForegroundColor;
-
-
-            var sourceLeft = 0;
-            var sourceTop = 36;
-            var sourceWidth = maxColumns - 0;
-            var sourceHeight = 4;
-            var targetLeft = 2;
-            var targetTop = 35;
-
-            System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
-
-            System.Console.SetCursorPosition(0, maxRows - 1);
-
-            if (exceptionType == ExceptionType.Error)
-            {
-                System.Console.ForegroundColor = ConsoleColor.Red;
-                System.Console.Write($"ERROR: {errorMsg}".PadRight(100, ' '));
-            }
-            else
-            {
-                System.Console.ForegroundColor = ConsoleColor.DarkYellow;
-                System.Console.Write($"WARNING: {errorMsg}".PadRight(100, ' '));
-            }
-            System.Console.SetCursorPosition(curLeft, curTop);
-            System.Console.ForegroundColor = curreColor;
-        }
-        private static void ClearError()
-        {
-            var currLeft = System.Console.CursorLeft;
-            var currTop = System.Console.CursorTop;
-            System.Console.SetCursorPosition(0, maxRows - 1);
-            System.Console.Write("".PadRight(100), ' ');
-            System.Console.SetCursorPosition(currLeft, currTop);
-        }
-        private static void OnAddressChanged(AddressBusEventArgs arg)
-        {
-            UpdateAddress(arg);
-            if (showDeviceActivity)
-                UpdateDeviceActivity(arg);
-        }
-
+        #region Main Menu
         private static void DisplayMainMenu()
         {
-            Reset:
+        Reset:
             System.Console.Clear();
-            var colWidth = 40;
+            var row = 1;
+            var right = System.Console.BufferWidth / 2;
             CreateSubMenuHeading("Main Menu");
-            if (binaryFileLoaded)
-                System.Console.WriteLine($"    F1 = Load Binary file into ROM " + "\u221A".PadRight(colWidth));
-            else
-                System.Console.WriteLine($"    F1 = Load Binary file into ROM".PadRight(colWidth));
-
-            System.Console.WriteLine("    F2 = Memory Monitor".PadRight(colWidth));
-            System.Console.WriteLine("    F5 = Start Emulator".PadRight(colWidth));
-            System.Console.WriteLine("    F8 = OpCode Viewer Application".PadRight(colWidth));
-            System.Console.WriteLine();
-            System.Console.WriteLine();
-            System.Console.WriteLine("     X = Quit".PadRight(colWidth));
-            System.Console.WriteLine("".PadRight(maxColumns-1, '-'));
-            System.Console.SetCursorPosition(0, clientAreaStart);
-            
-            
-
-            WaitForSelection:
-            
-            var input = System.Console.ReadKey();
-
-            if(input.Key == ConsoleKey.F1)
+            CreateAsciiArt();
+            foreach (var menu in mainMenu.Items)
             {
-                DisplayMenu_LoadROMFile();
-                goto Reset;
-            }
-            if (input.Key == ConsoleKey.F2)
-            {
-                DisplayMenu_Monitor();
-                goto Reset;
-            }
-            if (input.Key == ConsoleKey.F5)
-            {
-                if(!binaryFileLoaded)
+                if (menu.Hidden)
+                    continue;
+
+                if (row > mainMenu.NumberOfLines - 1)
                 {
-                    DisplayError("No Binary file loaded. Please load a binary file in to ROM (F1).");
+                    System.Console.CursorTop = row - mainMenu.NumberOfLines + 1;
+                    System.Console.CursorLeft = right;
                 }
                 else
                 {
-                    System.Console.CursorVisible = false;
-                    emulator.Reset();
-                    DisplayMenu_Emulator();
-                    System.Console.CursorVisible = true;
-                    emulatorStarted = false;
-                    goto Reset;
+                    System.Console.CursorTop = row;
+                    System.Console.CursorLeft = 0;
                 }
-            }
-            if (input.Key == ConsoleKey.F8)
-            {
-                ProcessStartInfo startinfo = new ProcessStartInfo(".\\OpCodeViewer.exe");
-                startinfo.CreateNoWindow = true;
-                startinfo.UseShellExecute = true;
-                p = Process.Start(startinfo);
-            }
-            if (input.Key == ConsoleKey.X)
-            {
-                return;
+                row++;
+
+                System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
             }
 
+            System.Console.CursorTop = mainMenu.NumberOfLines + 1;
+            System.Console.CursorLeft = 0;
+            System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
+
+        WaitForSelection:
+
+            var input = System.Console.ReadKey();
+
+            var selected = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selected != null)
+            {
+                if (selected.ShortcutKey == ConsoleKey.Escape)
+                    return;
+                subMenu = selected.ChildMenuItems;
+                selected.MenuAction(0, 0);
+                goto Reset;
+            }
             goto WaitForSelection;
         }
 
+        private static void CreateAsciiArt()
+        {
+            var art = @"
+                                                                       &@@/                  
+                                                               #%@@@@@@@@@@@&                
+                                                       ./@@@@@@@@@@@@@@@@@@@@@@/             
+                                                ,&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@           
+                                         .@@@@@@@@&* ,/&&@@@@@@@@@@@@@@@@@@@@@@@@@@@.        
+                                  @@@@@@@@@@@@@.           @@@@@@@@@@@@@@@@@@@@@@@@@@@       
+                           #@@@@@@@@@@@@@@@@@@              %@@@@@@@@@@@@@@@@@@@@@@@@(./     
+                   /#@@@@@@@@@@@@@@@@@@@@@@@@@@             &@@@@@@@@@@@@@@@@@/, ,#@@@@@     
+                @%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,        ,@@@@@@@@@@@&#* ,(%@@@@@@@* /&     
+                @,,@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&  .,@@@@@@@@&@@  %&* /      
+                #*% &@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@(  ,&@@@@@@@@, #@( ,&@  % * /      
+                ,,*(,#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@/  .#@@@@@@@. @@  @,, # ( ,  &.@  /(      
+                @%*/., @@@@@@@@@@@@@@@@@@@@@*. *%@@@@@@&/@@  @@  #,  @ , & #(&   .,  /(      
+                   %*%%.,@@@@@@@@@@@%(, *#&@@@@@@@* (@# .@@  *(  #.@ (  **  #%   .,  *,      
+                    ,@(.@ @@@@%  .*@@@@@@@&%@@  &%* / # . @*%* (/  .    **  #%               
+                      .@ &&(@@@@@@&@@. #@( *#@  & * ( ,#&  &%  (/  .                         
+                        @@ &@  @@  @.. # ( * .@ @  /(  %&  &%  *#                            
+                          #@@  #*  @ . @ #(%    .  /(  %&                                    
+                            @  #.@./  ,*  ##    .  ,,                                        
+                             (/  ,.   ,*  ##                                                 
+                             (/  ,.                                                          
+                             *#              Developed by L. Ferreira
+";
+            
+            System.Console.CursorLeft = 0;
+            System.Console.CursorTop = mainMenu.NumberOfLines + 4;
+            System.Console.Write(art);
+        } 
 
-        private static void DisplayMenu_LoadROMFile()
+        #endregion
+
+        #region Load ROM
+        private static void DisplayLoadROMFile(int left = 0, int topOffset = 0)
         {
             System.Console.Clear();
             CreateSubMenuHeading("Load Binary File");
 
-            System.Console.WriteLine($"    ROM Address: ${rom.StartAddress:X4} - ${rom.EndAddress:X4}");
-            System.Console.WriteLine($"    ROM Size:     {rom.EndAddress - rom.StartAddress} bytes");
-            System.Console.WriteLine("    Ensure that the file size is same size in bytes.");
+            System.Console.WriteLine($"     ROM Address: ${rom.StartAddress:X4} - ${rom.EndAddress:X4}");
+            System.Console.WriteLine($"     ROM Size:     {rom.EndAddress - rom.StartAddress} bytes");
+            System.Console.WriteLine();
+            System.Console.WriteLine();
             System.Console.WriteLine();
             System.Console.WriteLine();
             System.Console.WriteLine("    Press Esc to return to  main menu.");
             System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
-            if(string.IsNullOrEmpty(lastROMFileLoaded))
-                System.Console.Write("Enter full path to file:> ");
-            else
-                System.Console.Write($"Enter full path to file: [{lastROMFileLoaded}]> ");
+            System.Console.Write("Enter full path to file:> ");
 
-            WaitForInput:
+        WaitForInput:
             binaryFileLoaded = false;
             System.Console.CursorVisible = true;
             var input = System.Console.ReadKey();
@@ -237,7 +195,7 @@ namespace W65C02S.Console
                 System.Console.CursorVisible = false;
                 return;
             }
-            if(input.Key == ConsoleKey.Enter && string.IsNullOrEmpty(lastROMFileLoaded))
+            if (input.Key == ConsoleKey.Enter && string.IsNullOrEmpty(lastROMFileLoaded))
             {
                 System.Console.CursorVisible = false;
                 return;
@@ -245,7 +203,7 @@ namespace W65C02S.Console
 
             string filePath = "";
             char? capturedChar = default;
-            if ( !string.IsNullOrEmpty(lastROMFileLoaded))
+            if (!string.IsNullOrEmpty(lastROMFileLoaded))
             {
                 capturedChar = null;
                 filePath = lastROMFileLoaded;
@@ -255,7 +213,7 @@ namespace W65C02S.Console
                 capturedChar = input.KeyChar;
                 filePath = System.Console.ReadLine();
             }
-            
+
             System.Console.CursorVisible = false;
             if (string.IsNullOrEmpty(filePath))
                 return;
@@ -263,7 +221,7 @@ namespace W65C02S.Console
             filePath = $"{capturedChar}{filePath}";
             //// debug
             if (filePath == "xxx")
-                filePath = "C:\\temp\\65c02_extended_opcodes_test.bin";
+                filePath = "C:\\Assemblers\\as65\\65c02_extended_opcodes_test.bin";
             //// debug
             if (!System.IO.File.Exists(filePath))
             {
@@ -272,64 +230,92 @@ namespace W65C02S.Console
                 goto WaitForInput;
             }
 
+
+            System.Console.WriteLine();
+            System.Console.WriteLine($"Reading in data from file {filePath}");
             var data = System.IO.File.ReadAllBytes(filePath);
 
 
-            if (data.Length > rom.EndAddress)
+            if (data.Length > (rom.EndAddress - rom.StartAddress))
             {
                 System.Console.WriteLine($"Binary file is too big. ROM size is 32768 bytes, and this file is {data.Length} bytes");
                 System.Console.Write("Enter full path to file:> ");
                 goto WaitForInput;
             }
 
-            emulator.LoadROM(data);
+            var offset = false;
+            if (data.Length < (rom.EndAddress - rom.StartAddress))
+            {
+                System.Console.WriteLine();
+                System.Console.WriteLine($"Binary file is smaller than ROM size. Do you want to off set this to the end of the ROM?");
+                System.Console.Write("[Y] to offset, [any other key] to load at start of ROM:> ");
+                offset = (System.Console.ReadKey().Key == ConsoleKey.Y);
+            }
+
+            emulator.LoadROM(data, offset);
             binaryFileLoaded = true;
+            var disassm = mainMenu.Items.FirstOrDefault(x => x.MenuAction == DisplayDisassembler);
+            if (disassm != null)
+                disassm.Hidden = !binaryFileLoaded;
+            var loadbin = mainMenu.Items.FirstOrDefault(x => x.MenuAction == DisplayLoadROMFile);
+            if (loadbin != null)
+                loadbin.Text += " \u221A";
+
+            var startAddr = offset ? (rom.EndAddress - data.Length + 1) : (rom.StartAddress);
             lastROMFileLoaded = filePath;
-            System.Console.WriteLine($"Loaded {data.Length} bytes into ROM....");
-            System.Console.Write("Press Enter to return to main menu :>");
+            System.Console.WriteLine();
+            System.Console.WriteLine();
+            System.Console.WriteLine($"Loaded {data.Length} bytes into ROM starting at location ${startAddr:X4}");
+            System.Console.Write("Press Enter to return to main menu...");
             System.Console.ReadLine();
         }
 
-        private static void DisplayMenu_Monitor()
+        #endregion
+
+        #region Memory Monitor
+        private static void DisplayMonitor(int left = 0, int topOffset = 0)
         {
+        Reset:
             System.Console.Clear();
             CreateSubMenuHeading("Memory Monitor");
+            var row = 1;
+            var right = System.Console.BufferWidth / 2;
+            foreach (var menu in subMenu.Items)
+            {
+                if (row > mainMenu.NumberOfLines - 1)
+                {
+                    System.Console.CursorTop = row - mainMenu.NumberOfLines + 1;
+                    System.Console.CursorLeft = right;
+                }
+                else
+                {
+                    System.Console.CursorTop = row;
+                    System.Console.CursorLeft = 0;
+                }
+                row++;
 
-            System.Console.WriteLine("    F1 = View Memory Location");
-            System.Console.WriteLine("    F2 = View Memory Page");
-            System.Console.WriteLine("    F3 = Edit Memory Location");
-            System.Console.WriteLine();
-            System.Console.WriteLine();
-            System.Console.WriteLine("   Esc = Return to main menu");
+                System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+            }
+
+            System.Console.CursorTop = mainMenu.NumberOfLines + 1;
+            System.Console.CursorLeft = 0;
             System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
-            ReStart:
 
         WaitForInput:
             var input = System.Console.ReadKey();
-            if (input.Key == ConsoleKey.Escape || input.Key == ConsoleKey.Enter)
-                return;
 
-            if (input.Key == ConsoleKey.F1)
+            var selected = subMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selected != null)
             {
-                ClearClientArea(true);
-                Monitor_DisplayLocation();
-                goto ReStart;
-            }
-            if (input.Key == ConsoleKey.F2)
-            {
-                ClearClientArea(true);
-                Monitor_DisplayPage();
-                goto ReStart;
-            }
-            if (input.Key == ConsoleKey.F3)
-            {
-                ClearClientArea(true);
-                Monitor_EditLocation();
-                goto ReStart;
-            }
-            if (input.Key == ConsoleKey.Escape)
-            {
-                return;
+                if (selected.ShortcutKey == ConsoleKey.Escape)
+                    return;
+
+                ClearClientArea(true, subMenu.NumberOfLines + 1);
+                
+                selected.MenuAction(0, subMenu.NumberOfLines + 2);
+                
+                if(selected.ChildMenuItems != null)
+                    subMenu = selected.ChildMenuItems;
             }
 
             goto WaitForInput;
@@ -337,7 +323,7 @@ namespace W65C02S.Console
         }
         private static void Monitor_DisplayHeader(int left = 0, int topOffset = 0)
         {
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
+            System.Console.SetCursorPosition(left, topOffset);
             System.Console.Write("Address | -0 -1 -2 -3 -4 -5 -6 -7 -8 -9 -A -B -C -D -E -F");
             System.Console.CursorLeft = left;
             System.Console.CursorTop++;
@@ -349,27 +335,27 @@ namespace W65C02S.Console
         {
             var inputRegex = "^[0-9A-Fa-f]{2,4}$";
             var inputDisplay = "View address location [FA],[AFB9]: >$";
-            ClearClientArea(false, 2);
+            ClearClientArea(false, topOffSet);
         Start:
             System.Console.CursorVisible = true;
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
+            System.Console.SetCursorPosition(left, topOffSet);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffSet);
+            System.Console.SetCursorPosition(inputDisplay.Length + left, topOffSet);
             var input = System.Console.ReadLine();
             System.Console.CursorVisible = false;
             if (String.IsNullOrEmpty(input))
             {
                 return;
             }
-            
-            if( !Regex.IsMatch(input, inputRegex))
+
+            if (!Regex.IsMatch(input, inputRegex))
             {
                 DisplayError("Invalid address. Requires 2 or 4 Hex digits.");
                 goto Start;
             }
             var orgLocation = input;
-            
-            if(input.Length > 2)
+
+            if (input.Length > 2)
                 input = input.Substring(0, 3) + "0";
             else
                 input = input.Substring(0, 1) + "0";
@@ -384,7 +370,7 @@ namespace W65C02S.Console
             System.Console.Write($"${location:X4}   : ");
             for (int index = location; index < location + 16; index++)
             {
-                if(index == requestedLoc)
+                if (index == requestedLoc)
                 {
                     System.Console.ForegroundColor = ConsoleColor.DarkYellow;
                     System.Console.Write($"{emulator.ReadMemoryLocation((ushort)index):X2} ");
@@ -397,17 +383,16 @@ namespace W65C02S.Console
                 }
             }
         }
-        
         private static void Monitor_DisplayPage(int left = 0, int topOffset = 0)
         {
             var inputRegex = "^[0-9A-Fa-f]{2}$";
             var inputDisplay = "View page [AF]: >$";
-            ClearClientArea(false, 2);
+            ClearClientArea(false, topOffset);
         Start:
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
+            System.Console.SetCursorPosition(left, topOffset);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
-            
+            System.Console.SetCursorPosition(inputDisplay.Length + left, topOffset);
+
             var input = System.Console.ReadLine();
             if (String.IsNullOrEmpty(input))
             {
@@ -426,20 +411,20 @@ namespace W65C02S.Console
 
             var location = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
             System.Console.CursorLeft = left;
-            for ( int index = location ; index < location + 256; index += 16)
+            for (int index = location; index < location + 256; index += 16)
             {
                 System.Console.Write($"${index:X4}   : ");
 
                 for (int col = index; col < (index + 16); col++)
                 {
-                    if (col == currentStackPointer)
+                    if (left != 0 && col == currentStackPointer)
                         System.Console.ForegroundColor = ConsoleColor.White;
                     else
                         System.Console.ForegroundColor = ConsoleColor.Green;
 
                     System.Console.Write($"{emulator.ReadMemoryLocation((ushort)col):X2} ");
                 }
-                
+
                 System.Console.ForegroundColor = ConsoleColor.Green;
                 System.Console.CursorTop++;
                 System.Console.CursorLeft = left;
@@ -449,12 +434,12 @@ namespace W65C02S.Console
         {
             var inputRegex = "^[0-9A-Fa-f]{2,4}$";
             var inputDisplay = "Edit address location [EA],[AFB9]: >$";
-            ClearClientArea(false, 2);
+            ClearClientArea((left == 0), topOffSet);
         Start:
             System.Console.CursorVisible = true;
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffSet);
+            System.Console.SetCursorPosition(left, topOffSet);
             System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffSet);
+            System.Console.SetCursorPosition(inputDisplay.Length + left, topOffSet);
             var input = System.Console.ReadLine();
             System.Console.CursorVisible = false;
             if (String.IsNullOrEmpty(input))
@@ -499,7 +484,7 @@ namespace W65C02S.Console
 
 
         TryAgain:
-            
+
             //System.Console.CursorLeft = editIndex;
             //System.Console.Write("  ");
             System.Console.CursorLeft = editIndex;
@@ -526,146 +511,256 @@ namespace W65C02S.Console
             emulator.WriteMemoryLocation((ushort)requestedLoc, newVal);
         }
 
-        private static void DisplayMenu_Emulator()
+        #endregion
+
+        #region Emulator
+        private static void DisplayEmulator(int left = 0, int topOffset = 0)
         {
-            var leftCol = 0;
-            var rightCol = maxColumns / 2;
-            
             System.Console.Clear();
             CreateSubMenuHeading("Emulator");
+            var row = 1;
+            var right = System.Console.BufferWidth / 2;
+            foreach (var menu in subMenu.Items)
+            {
+                if (row > mainMenu.NumberOfLines - 1)
+                {
+                    System.Console.CursorTop = row - mainMenu.NumberOfLines + 1;
+                    System.Console.CursorLeft = right;
+                }
+                else
+                {
+                    System.Console.CursorTop = row;
+                    System.Console.CursorLeft = 0;
+                }
+                row++;
 
-            System.Console.SetCursorPosition(leftCol, 1); System.Console.Write("    F5 = Run (Ctrl+Break to break into Debug)");
-            System.Console.SetCursorPosition(leftCol, 2); System.Console.Write("    F9 = Add/Remove Breakpoint");
-            System.Console.SetCursorPosition(leftCol, 3); System.Console.Write("   F10 = Step next Instruction");
-            System.Console.SetCursorPosition(leftCol, 4); System.Console.Write("    F8 = Set Program Counter Value");
-            System.Console.SetCursorPosition(leftCol ,5); System.Console.Write("   F12 = Reset CPU");
-            System.Console.SetCursorPosition(leftCol, 6); System.Console.Write("   Esc = Return to main menu");
+                System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+            }
 
-            System.Console.SetCursorPosition(rightCol, 1); System.Console.Write("F1 = View Memory Location");
-            System.Console.SetCursorPosition(rightCol, 2); System.Console.Write("F2 = View Memory Page");
-            System.Console.SetCursorPosition(rightCol, 3); System.Console.Write("F3 = Edit Memory Location");
-            System.Console.SetCursorPosition(rightCol, 4); System.Console.Write("F6 = Send IRQ Signal");
-            System.Console.SetCursorPosition(rightCol, 5); System.Console.Write("F7 = Send NMI Signal");
-
-        Reset:
-            System.Console.SetCursorPosition(leftCol, clientAreaStart-1);
+            System.Console.CursorTop = mainMenu.NumberOfLines + 1;
+            System.Console.CursorLeft = 0;
+            System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
+            System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 1);
             System.Console.Write("".PadRight(maxColumns, '-'));
-            System.Console.SetCursorPosition(leftCol, clientAreaStart);
+            System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 2);
             System.Console.Write("Address:$---- | A:$-- X:$-- Y:$-- | SP:$---- | ST:-------- | PC: $---- |                        Clock Ticks:------------");
-            System.Console.SetCursorPosition(leftCol, clientAreaStart + 1);
+            System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 3);
             System.Console.Write("".PadRight(maxColumns, '-'));
-            System.Console.SetCursorPosition(0, clientAreaStart+1);
-            lastInstructionPos = clientAreaStart+2;
+            System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 4);
+            lastInstructionPos = topOffset + subMenu.NumberOfLines + 4;
             emulatorStarted = true;
+
+            if(!binaryFileLoaded)
+            {
+                DisplayError("NO BINARY FILE LOADED. Please go to main menu, and select option to load binary file.", ExceptionType.Warning);
+            }
 
         WaitForInput:
             showDeviceActivity = true;
-            var input = System.Console.ReadKey();
-            if (input.Key == ConsoleKey.Escape || input.Key == ConsoleKey.Enter)
-                return;
-            
-            if (input.Key == ConsoleKey.F1)
-            {
-                showDeviceActivity = false;
-                //ClearClientArea(false, 2);
-                System.Console.CursorVisible = true;
-                Monitor_DisplayLocation(maxColumns / 2, 2);
-                System.Console.CursorVisible = false;
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F2)
-            {
-                showDeviceActivity = false;
-                System.Console.CursorVisible = true;
-                Monitor_DisplayPage(maxColumns / 2, 2);
-                System.Console.CursorVisible = false;
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F3)
-            {
-                showDeviceActivity = false;
-                System.Console.CursorVisible = true;
-                Monitor_EditLocation(maxColumns / 2, 2);
-                System.Console.CursorVisible = false;
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F5)
-            {
-                showDeviceActivity = false;
-                emulator.Run();
+            var input = System.Console.ReadKey(true);
 
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F6)
+            var selected = subMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selected != null)
             {
-                emulator.SendIRQ();
-            }
-            if (input.Key == ConsoleKey.F7)
-            {
-                emulator.SendNMI();
-            }
-            if (input.Key == ConsoleKey.F8)
-            {
-                EditPCValue();
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F9)
-            {
-                DisplayBreakPoints();
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F10)
-            {
-                ClearActivityArea();
-                emulator.Step();
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F11)
-            {
-                
-                goto WaitForInput;
-            }
-            if (input.Key == ConsoleKey.F12)
-            {
-                showDeviceActivity = false;
-                emulator.Reset();
-                ClearClientArea(true, -1);
-                ClearClientArea(false, -1);
-                goto Reset;
-            }
+                if (selected.ShortcutKey == ConsoleKey.Escape)
+                    return;
 
-            if (input.Key == ConsoleKey.Escape)
-            {
-                return;
-            }
+                var sideDisplayIDs = new int[] { 1, 2, 3, 7 };
+                var clearAfterIDs = new int[] { 7, 8 };
+                var isSideDisplay = sideDisplayIDs.Any(x => x == selected.Index);
+                if (isSideDisplay)
+                {
+                    System.Console.CursorVisible = true;
+                    left = (sideDisplayIDs.Any(x => x == selected.Index)) ? maxColumns / 2 : 0;
+                    showDeviceActivity = false;
+                    ClearClientArea(false, topOffset + subMenu.NumberOfLines + 4);
+                }
 
+
+                selected.MenuAction(left, topOffset + subMenu.NumberOfLines + 4);
+
+                if (selected.ChildMenuItems != null)
+                    subMenu = selected.ChildMenuItems;
+
+                System.Console.CursorVisible = false;
+
+                if(clearAfterIDs.Any(x => x == selected.Index))
+                {
+                    ClearClientArea(false, topOffset + subMenu.NumberOfLines + 3);
+                }
+            }
             goto WaitForInput;
+
         }
 
-        private static void CreateSubMenuHeading(string headingText)
+        private static void ResetEmulator(int left = 0, int topOffset = 0)
         {
-            System.Console.Write("".PadRight(((maxColumns-1) / 2) - (headingText.Length / 2), '-'));
-            System.Console.ForegroundColor = ConsoleColor.White;
-            System.Console.Write(headingText);
+            showDeviceActivity = false;
+            lastInstructionPos = subMenu.NumberOfLines + 4;
+            emulator.Reset();
+            ClearClientArea(true, subMenu.NumberOfLines + 3);
+            ClearClientArea(false, subMenu.NumberOfLines + 3);
+        }
+
+        private static void StepNextInstruction(int left = 0, int topOffset = 0)
+        {
+            ClearActivityArea();
+            emulator.Step();
+        }
+
+        private static void SendNMISignal(int left = 0, int topOffset = 02)
+        {
+            emulator.SendNMI();
+        }
+
+        private static void SendIRQSignal(int left = 0, int topOffset = 0)
+        {
+            emulator.SendIRQ();
+        }
+
+        private static void RunEmulator(int left = 0, int topOffset = 02)
+        {
+            showDeviceActivity = false;
+            ClearActivityArea();
+            emulator.Run();
+        }
+
+        private static void DisplayBreakPoints(int left = 0, int topOffset = 2)
+        {
+            if (left == 0)
+                left = maxColumns / 2;
+            var inputRegex = "^[0-9A-Fa-f]{4}$";
+            var inputDisplay = "Add/Remove PC Address (blank to quit) [AFB9]: >$";
+
+            ClearClientArea(false, topOffset);
+
+            // display list
+            System.Console.SetCursorPosition(left, topOffset + 1);
+            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
+
+            foreach (var bp in emulator.GetBreakPoints())
+            {
+                System.Console.CursorLeft = left;
+                System.Console.WriteLine($"[${bp:X4}]");
+            }
+
+
+        Start:
+            System.Console.CursorVisible = true;
+            System.Console.SetCursorPosition(left, topOffset);
+            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
+            System.Console.SetCursorPosition(inputDisplay.Length + left, topOffset);
+            var input = System.Console.ReadLine();
+            System.Console.CursorVisible = false;
+            if (String.IsNullOrEmpty(input) || input == Environment.NewLine)
+            {
+                ClearError();
+                return;
+            }
+
+            if (!Regex.IsMatch(input, inputRegex))
+            {
+                DisplayError("Invalid address. Requires 4 Hex digits.");
+                goto Start;
+            }
+
+            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            emulator.AddRemoveBreakPoint(inputValue);
+
+            // display new list
+            System.Console.SetCursorPosition(left, topOffset + 1);
+            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
+            System.Console.ForegroundColor = ConsoleColor.DarkCyan;
+            foreach (var bp in emulator.GetBreakPoints())
+            {
+                System.Console.CursorLeft = left;
+                System.Console.WriteLine($"[${bp:X4}]");
+            }
             System.Console.ForegroundColor = ConsoleColor.Green;
-            System.Console.WriteLine("".PadRight(((maxColumns - 1) / 2) - (headingText.Length / 2), '-'));
+            System.Console.CursorLeft = left;
+            System.Console.WriteLine($"".PadRight((maxColumns / 2) - 2, ' ')); // clear the last entry off the screen
+            goto Start;
+        }
+
+        private static void EditPCValue(int left = 0, int topOffset = 0)
+        {
+            if (left == 0)
+                left = maxColumns / 2;
+            var inputRegex = "^[0-9A-Fa-f]{4}$";
+            var inputDisplay = "Set PC Address [AFB9]: >$";
+
+            ClearClientArea(false, topOffset);
+        Start:
+            System.Console.CursorVisible = true;
+            System.Console.SetCursorPosition(left, topOffset);
+            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
+            System.Console.SetCursorPosition(inputDisplay.Length + left, topOffset);
+            var input = System.Console.ReadLine();
+            System.Console.CursorVisible = false;
+            if (String.IsNullOrEmpty(input))
+            {
+                return;
+            }
+
+            if (!Regex.IsMatch(input, inputRegex))
+            {
+                DisplayError("Invalid address. Requires 4 Hex digits.");
+                goto Start;
+            }
+
+            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
+            emulator.SetPCValue(inputValue);
+            UpdateProgramCounterDisplay(inputValue);
+        }
+
+        private static void UpdateAddressDisplay(AddressBusEventArgs sender)
+        {
+            var topOffset = subMenu.NumberOfLines + 2;
+
+            if (!emulatorStarted)
+                return;
+            var curLeft = System.Console.CursorLeft;
+            var curTop = System.Console.CursorTop;
+            var curreColor = System.Console.ForegroundColor;
+            System.Console.ForegroundColor = ConsoleColor.DarkYellow;
+            System.Console.SetCursorPosition(9, topOffset);
+            System.Console.Write($"{sender.Address:X4}");
+            System.Console.SetCursorPosition(curLeft, curTop);
+            System.Console.ForegroundColor = curreColor;
+        }
+
+        private static void UpdateProgramCounterDisplay(ushort newValue)
+        {
+            var topOffset = subMenu.NumberOfLines + 2;
+
+            if (!emulatorStarted)
+                return;
+            var curLeft = System.Console.CursorLeft;
+            var curTop = System.Console.CursorTop;
+            var curreColor = System.Console.ForegroundColor;
+            System.Console.ForegroundColor = ConsoleColor.DarkYellow;
+            System.Console.SetCursorPosition(66, topOffset);
+            System.Console.Write($"{newValue:X4}");
+            System.Console.SetCursorPosition(curLeft, curTop);
+            System.Console.ForegroundColor = curreColor;
         }
 
         private static void DisplayRegisters(byte A, byte X, byte Y, byte ST, ushort SP, ushort PC, double clockTicks)
         {
+            var topOffset = subMenu.NumberOfLines + 2;
             currentStackPointer = SP;
 
             var curLeft = System.Console.CursorLeft;
             var curTop = System.Console.CursorTop;
             System.Console.ForegroundColor = ConsoleColor.DarkYellow;
-            System.Console.SetCursorPosition(0, clientAreaStart);
+            System.Console.SetCursorPosition(0, topOffset);
 
             System.Console.CursorLeft = 19; System.Console.Write($"{A:X2}");
             System.Console.CursorLeft = 25; System.Console.Write($"{X:X2}");
             System.Console.CursorLeft = 31; System.Console.Write($"{Y:X2}");
-            
+
             System.Console.CursorLeft = 40; System.Console.Write($"{SP:X4}");
-            
+
             System.Console.CursorLeft = 50;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.N) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"N");
@@ -699,156 +794,24 @@ namespace W65C02S.Console
             System.Console.Write($"C");
 
             System.Console.CursorLeft = 66; System.Console.Write($"{PC:X4}");
-            System.Console.CursorLeft = 108;System.Console.Write($"{clockTicks}".PadLeft(12, ' '));
+            System.Console.CursorLeft = 108; System.Console.Write($"{clockTicks}".PadLeft(12, ' '));
 
             System.Console.ForegroundColor = ConsoleColor.Green;
-            System.Console.SetCursorPosition(0, clientAreaStart + 1);
+            System.Console.SetCursorPosition(0, topOffset + 1);
             System.Console.Write("".PadRight(maxColumns, '-'));
             System.Console.SetCursorPosition(curLeft, curTop);
         }
-
-        private static void UpdateAddress(AddressBusEventArgs sender)
-        {
-            if ( !emulatorStarted)
-                return;
-            var curLeft = System.Console.CursorLeft;
-            var curTop = System.Console.CursorTop;
-            var curreColor = System.Console.ForegroundColor;
-            System.Console.ForegroundColor = ConsoleColor.DarkYellow;
-            System.Console.SetCursorPosition(9, clientAreaStart);
-            System.Console.Write($"{sender.Address:X2}");
-            System.Console.SetCursorPosition(curLeft, curTop);
-            System.Console.ForegroundColor = curreColor;
-        }
-
-
-        private static void DisplayBreakPoints()
-        {
-            var left = maxColumns / 2;
-            var topOffset = 2;
-            var inputRegex = "^[0-9A-Fa-f]{4}$";
-            var inputDisplay = "Add / Remove PC Address [AFB9]: >$";
-
-            ClearClientArea(false, 2);
-
-            // display list
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset + 1);
-            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
-
-            foreach (var bp in emulator.GetBreakPoints())
-            {
-                System.Console.CursorLeft = left;
-                System.Console.WriteLine($"[${bp:X4}]");
-            }
-            
-
-        Start:
-            System.Console.CursorVisible = true;
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
-            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
-            var input = System.Console.ReadLine();
-            System.Console.CursorVisible = false;
-            if (String.IsNullOrEmpty(input))
-            {
-                return;
-            }
-
-            if (!Regex.IsMatch(input, inputRegex))
-            {
-                DisplayError("Invalid address. Requires 4 Hex digits.");
-                goto Start;
-            }
-
-            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
-            emulator.AddRemoveBreakPoint(inputValue);
-
-            // display new list
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset + 1);
-            System.Console.WriteLine("Current Breakpoints:".PadRight(25, ' '));
-
-            foreach (var bp in emulator.GetBreakPoints())
-            {
-                System.Console.CursorLeft = left;
-                System.Console.WriteLine($"[${bp:X4}]");
-            }
-            System.Console.CursorLeft = left;
-            System.Console.WriteLine($"".PadRight((maxColumns / 2) - 2, ' ')); // clear the last entry off the screen
-
-        }
-
-        private static void EditPCValue()
-        {
-            var left = maxColumns / 2;
-            var topOffset = 2;
-            var inputRegex = "^[0-9A-Fa-f]{4}$";
-            var inputDisplay = "Set PC Address [AFB9]: >$";
-
-            ClearClientArea(false, 2);
-        Start:
-            System.Console.CursorVisible = true;
-            System.Console.SetCursorPosition(left, clientAreaStart + topOffset);
-            System.Console.WriteLine(inputDisplay.PadRight(60, ' '));
-            System.Console.SetCursorPosition(inputDisplay.Length + left, clientAreaStart + topOffset);
-            var input = System.Console.ReadLine();
-            System.Console.CursorVisible = false;
-            if (String.IsNullOrEmpty(input))
-            {
-                return;
-            }
-
-            if (!Regex.IsMatch(input, inputRegex))
-            {
-                DisplayError("Invalid address. Requires 4 Hex digits.");
-                goto Start;
-            }
-
-            var inputValue = ushort.Parse(input, System.Globalization.NumberStyles.HexNumber);
-            emulator.SetPCValue(inputValue);
-        }
-
-        private static void UpdateDeviceActivity(AddressBusEventArgs sender)
-        {
-            if (!emulatorStarted)
-                return;
-            var curLeft = System.Console.CursorLeft;
-            var curTop = System.Console.CursorTop;
-            var curreColor = System.Console.ForegroundColor;
-
-
-            var sourceLeft = 2;
-            var sourceTop = 36;
-            var sourceWidth = maxColumns  - 2;
-            var sourceHeight = 4;
-            var targetLeft = 2;
-            var targetTop = 35;
-
-            System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
-
-            System.Console.SetCursorPosition(0, maxRows - 1);
-            System.Console.ForegroundColor = ConsoleColor.Cyan;
-            if(sender.Mode == DataBusMode.Read)
-                System.Console.Write($" >Read value ${sender.Data:X2} from address ${sender.Address:X4} on device '{sender.DeviceName}'".PadRight(maxColumns - 1, ' '));
-            else
-                System.Console.Write($" >Wrote value ${sender.Data:X2} to address ${sender.Address:X4} on device '{sender.DeviceName}'".PadRight(maxColumns - 1, ' '));
-
-            System.Console.SetCursorPosition(curLeft, curTop);
-            System.Console.ForegroundColor = curreColor;
-
-            
-        }
-
         private static void ShowLastInstruction(string instruction, string rawData, ushort PC)
         {
-            
+            var topOffset = subMenu.NumberOfLines + 1;
             if (lastInstructionPos > clientAreaHeight)
             {
                 var sourceLeft = 0;
-                var sourceTop = clientAreaStart + 3;
+                var sourceTop = topOffset + 3;
                 var sourceWidth = (maxColumns / 2) - 1;
                 var sourceHeight = clientAreaHeight - sourceTop + 1;
                 var targetLeft = 0;
-                var targetTop = clientAreaStart + 2;
+                var targetTop = topOffset + 2;
 
                 System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
                 lastInstructionPos = clientAreaHeight;
@@ -864,11 +827,186 @@ namespace W65C02S.Console
 
         }
 
+        private static void OnInstructionExecuting(OnInstructionExecutingEventArg e)
+        {
+            ShowLastInstruction(e.DecodedInstruction, e.RawData, e.PC);
+        }
+        private static void OnInstructionExecuted(OnInstructionExecutedEventArg e)
+        {
+            DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
+        }
+
+        #endregion
+
+        #region OpCode Viewer
+        private static void ShowOpCodeApplication(int arg1, int arg2)
+        {
+            try
+            {
+                ProcessStartInfo startinfo = new ProcessStartInfo(".\\OpCodeViewer.exe");
+                startinfo.CreateNoWindow = true;
+                startinfo.UseShellExecute = true;
+                p = Process.Start(startinfo);
+            }
+            catch (Exception ex)
+            {
+                DisplayError(ex.Message, ExceptionType.Error);
+            }
+        }
+        #endregion
+
+        #region Disassembler
+        private static void DisplayDisassembler(int arg1, int arg2)
+        {
+            //Reset:
+            System.Console.Clear();
+            CreateSubMenuHeading("Disassembler");
+            var row = 1;
+            var right = System.Console.BufferWidth / 2;
+            if(subMenu != null)
+            {
+                foreach (var menu in subMenu.Items)
+                {
+                    if (row > subMenu.NumberOfLines - 1)
+                    {
+                        System.Console.CursorTop = row - subMenu.NumberOfLines + 1;
+                        System.Console.CursorLeft = right;
+                    }
+                    else
+                    {
+                        System.Console.CursorTop = row;
+                        System.Console.CursorLeft = 0;
+                    }
+                    row++;
+
+                    System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+                }
+
+                System.Console.CursorTop = subMenu.NumberOfLines + 1;
+            }
+            System.Console.CursorLeft = 0;
+            System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
+
+        WaitForSelection:
+            var input = System.Console.ReadKey();
+
+            var selected = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selected != null)
+            {
+                if (selected.ShortcutKey == ConsoleKey.Escape)
+                    return;
+                subMenu = selected.ChildMenuItems;
+                selected.MenuAction(0, 0);
+                //goto Reset;
+            }
+            goto WaitForSelection;
+
+        }
+        #endregion
+
+        private static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            emulator.Mode = RunMode.Debug;
+            showDeviceActivity = true;
+            e.Cancel = true;
+        }
+        private static void OnError(ExceptionEventArg e)
+        {
+            DisplayError(e.ErrorMessage, e.ExceptionType);
+        }
+        private static void DisplayError(string errorMsg, ExceptionType exceptionType = ExceptionType.Error)
+        {
+            var curLeft = System.Console.CursorLeft;
+            var curTop = System.Console.CursorTop;
+            var curreColor = System.Console.ForegroundColor;
+
+
+            var sourceLeft = 0;
+            var sourceTop = 36;
+            var sourceWidth = maxColumns - 0;
+            var sourceHeight = 4;
+            var targetLeft = 2;
+            var targetTop = 35;
+
+            System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
+
+            System.Console.SetCursorPosition(0, maxRows - 1);
+
+            if (exceptionType == ExceptionType.Error)
+            {
+                System.Console.ForegroundColor = ConsoleColor.Red;
+                System.Console.Write($"ERROR: {errorMsg}".PadRight(100, ' '));
+            }
+            else if (exceptionType == ExceptionType.Warning)
+            {
+                System.Console.ForegroundColor = ConsoleColor.DarkYellow;
+                System.Console.Write($"WARNING: {errorMsg}".PadRight(100, ' '));
+            }
+            else if (exceptionType == ExceptionType.Debug)
+            {
+                System.Console.ForegroundColor = ConsoleColor.Magenta;
+                System.Console.Write($"DEBUG: {errorMsg}".PadRight(100, ' '));
+            }
+            System.Console.SetCursorPosition(curLeft, curTop);
+            System.Console.ForegroundColor = curreColor;
+        }
+        private static void ClearError()
+        {
+            var currLeft = System.Console.CursorLeft;
+            var currTop = System.Console.CursorTop;
+            System.Console.SetCursorPosition(0, maxRows - 1);
+            System.Console.Write("".PadRight(100), ' ');
+            System.Console.SetCursorPosition(currLeft, currTop);
+        }
+        private static void OnAddressChanged(AddressBusEventArgs arg)
+        {
+            UpdateAddressDisplay(arg);
+            if (showDeviceActivity)
+                UpdateDeviceActivity(arg);
+        }
+        private static void CreateSubMenuHeading(string headingText)
+        {
+            System.Console.Write("".PadRight(((System.Console.BufferWidth) / 2) - (headingText.Length / 2), '-'));
+            System.Console.ForegroundColor = ConsoleColor.White;
+            System.Console.Write(headingText);
+            System.Console.ForegroundColor = ConsoleColor.Green;
+            System.Console.WriteLine("".PadRight(((maxColumns - 1) / 2) - (headingText.Length / 2), '-'));
+        }
+        private static void UpdateDeviceActivity(AddressBusEventArgs sender)
+        {
+            if (!emulatorStarted)
+                return;
+            var curLeft = System.Console.CursorLeft;
+            var curTop = System.Console.CursorTop;
+            var curreColor = System.Console.ForegroundColor;
+
+
+            var sourceLeft = 2;
+            var sourceTop = 36;
+            var sourceWidth = maxColumns - 2;
+            var sourceHeight = 4;
+            var targetLeft = 2;
+            var targetTop = 35;
+
+            System.Console.MoveBufferArea(sourceLeft, sourceTop, sourceWidth, sourceHeight, targetLeft, targetTop);
+
+            System.Console.SetCursorPosition(0, maxRows - 1);
+            System.Console.ForegroundColor = ConsoleColor.Cyan;
+            if (sender.Mode == DataBusMode.Read)
+                System.Console.Write($" >Read value ${sender.Data:X2} from address ${sender.Address:X4} on device '{sender.DeviceName}'".PadRight(maxColumns - 1, ' '));
+            else
+                System.Console.Write($" >Wrote value ${sender.Data:X2} to address ${sender.Address:X4} on device '{sender.DeviceName}'".PadRight(maxColumns - 1, ' '));
+
+            System.Console.SetCursorPosition(curLeft, curTop);
+            System.Console.ForegroundColor = curreColor;
+
+
+        }
         private static void ClearClientArea(bool left, int topOffset = 0)
         {
             var curLeft = left == true ? 0 : (maxColumns / 2);
             var currTop = System.Console.CursorTop;
-            for (int index = (clientAreaStart + topOffset); index <= clientAreaHeight; index++)
+            for (int index = topOffset+1; index <= clientAreaHeight; index++)
             {
                 System.Console.CursorLeft = curLeft;
                 System.Console.CursorTop = index;
@@ -888,5 +1026,52 @@ namespace W65C02S.Console
             }
             System.Console.CursorTop = currTop;
         }
+
+ 
+
+        private static void SetupMenuStructure()
+        {
+            mainMenu = new MenuCollection();
+            mainMenu.NumberOfLines = 7;
+            mainMenu.Items = new List<MenuItem> {
+                new MenuItem { Index = 1, Text = "Load Binary Image into ROM", ShortcutKey = ConsoleKey.F1, MenuAction = DisplayLoadROMFile },
+                new MenuItem { Index = 2, Text = "Memory Monitor", ShortcutKey = ConsoleKey.F2, MenuAction = DisplayMonitor, ChildMenuItems = new MenuCollection { NumberOfLines = 7,
+                    Items = new List<MenuItem> {
+                        { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
+                        { new MenuItem { Index = 2, Text = "View Memory Page", ShortcutKey = ConsoleKey.F2, MenuAction = Monitor_DisplayPage} },
+                        { new MenuItem { Index = 3, Text = "Edit Memory Location", ShortcutKey = ConsoleKey.F3, MenuAction = Monitor_EditLocation} },
+                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                    }
+                } },
+                new MenuItem {Index = 3, Text = "Start Emulator", ShortcutKey = ConsoleKey.F3, MenuAction = DisplayEmulator, ChildMenuItems = new MenuCollection { NumberOfLines = 7, 
+                    Items = new List<MenuItem>
+                    {
+                        { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
+                        { new MenuItem { Index = 2, Text = "View Memory Page", ShortcutKey = ConsoleKey.F2, MenuAction = Monitor_DisplayPage} },
+                        { new MenuItem { Index = 3, Text = "Edit Memory Location", ShortcutKey = ConsoleKey.F3, MenuAction = Monitor_EditLocation} },
+                        { new MenuItem { Index = 4, Text = "Run (Ctrl+Break to break into Debug)", ShortcutKey = ConsoleKey.F5, MenuAction = RunEmulator } },
+                        { new MenuItem { Index = 5, Text = "Send IRQ Signal", ShortcutKey = ConsoleKey.F6, MenuAction = SendIRQSignal} },
+                        { new MenuItem { Index = 6, Text = "Send NMI Signal", ShortcutKey = ConsoleKey.F7, MenuAction = SendNMISignal} },
+                        { new MenuItem { Index = 7, Text = "Set Program Counter Value", ShortcutKey = ConsoleKey.F8, MenuAction = EditPCValue} },
+                        { new MenuItem { Index = 8, Text = "Add/Remove Breakpoint", ShortcutKey = ConsoleKey.F9, MenuAction = DisplayBreakPoints} },
+                        { new MenuItem { Index = 9, Text = "Step next Instruction", ShortcutKey = ConsoleKey.F10, MenuAction = StepNextInstruction} },
+                        { new MenuItem { Index = 10, Text = "Reset CPU", ShortcutKey = ConsoleKey.F12, MenuAction = ResetEmulator} },
+                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                    }
+                } },
+                new MenuItem {Index = 4, Text = "OpCode Viewer Application", ShortcutKey = ConsoleKey.F8, MenuAction = ShowOpCodeApplication},
+                new MenuItem {Index = 5, Text = "Disassembler", ShortcutKey = ConsoleKey.F4, MenuAction = DisplayDisassembler, Hidden = true, ChildMenuItems = new MenuCollection { NumberOfLines = 7,
+                    Items = new List<MenuItem>
+                    {
+                        { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
+                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                    }
+                } },
+                new MenuItem {Index = 6,Text = "Exit",ShortcutKey = ConsoleKey.Escape}
+            };
+
+        }
+
+
     }
 }

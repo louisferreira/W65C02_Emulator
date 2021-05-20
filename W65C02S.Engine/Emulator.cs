@@ -92,17 +92,12 @@ namespace W65C02S.Engine
                 if (BreakPoints.Contains(cpu.PC))
                 {
                     mode = RunMode.Debug;
-                    var e = new ExceptionEventArg() { ErrorMessage = $"Breakpoint ${cpu.PC:X4} hit....".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
+                    var e = new ExceptionEventArg() { ErrorMessage = $"Breakpoint ${cpu.PC:X4} hit....".PadRight(100, ' '), ExceptionType = ExceptionType.Debug };
                     bus?.Publish(e);
                     return;
                 }
                 else
                     cpu.Step();
-            }
-            if (cpu.IsFlagSet(ProcessorFlags.B) && !cpu.IsFlagSet(ProcessorFlags.I))
-            {
-                var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with BRK/WAI instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
-                bus?.Publish(e);
             }
         }
 
@@ -126,11 +121,12 @@ namespace W65C02S.Engine
             bus.UnSubscribe<ExceptionEventArg>(OnError);
         }
 
-        public void LoadROM(byte[] data)
+        public void LoadROM(byte[] data, bool offset)
         {
             var arg = new RomLoadArgs
             {
-                Data = data
+                Data = data,
+                UseOffset = offset
             };
             bus.Publish(arg);
         }

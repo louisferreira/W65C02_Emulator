@@ -56,6 +56,7 @@ namespace W65C02S.Bus
     public enum ExceptionType
     {
         Error = 0,
-        Warning = 1
+        Warning = 1,
+        Debug = 2
     }
 }

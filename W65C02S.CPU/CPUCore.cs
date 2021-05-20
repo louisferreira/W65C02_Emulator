@@ -162,9 +162,9 @@ namespace W65C02S.CPU
                 }
                 finally {
                     RaiseInstructionExecuted();
-                    if(currentInstruction.Mnemonic == "BRK" || currentInstruction.Mnemonic == "WAI")
+                    if(currentInstruction.Mnemonic == "STP" || currentInstruction.Mnemonic == "WAI")
                     {
-                        var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with BRK/WAI instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
+                        var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with SToP/WAIt instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
                         bus?.Publish(e);
                     }
                     operandAddress = null;

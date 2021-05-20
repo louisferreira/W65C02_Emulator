@@ -9,5 +9,6 @@ namespace W65C02S.Bus.EventArgs
     public class RomLoadArgs
     {
         public byte[] Data { get; set; }
+        public bool UseOffset { get; set; }
     }
 }

@@ -1123,7 +1123,7 @@ namespace W65C02S.CPU
             val = ((byte)(val & ~A));
             WriteValueToAddress(operandAddress.Value, val);
 
-            SetFlag(ProcessorFlags.Z, ((val & A) > 0));
+            SetFlag(ProcessorFlags.Z, ((val & A) == 0));
             IncrementPC(currentInstruction.Length);
         }
 
@@ -1135,7 +1135,7 @@ namespace W65C02S.CPU
             val = ((byte)(val | A));
             WriteValueToAddress(operandAddress.Value, val);
 
-            SetFlag(ProcessorFlags.Z, ((val & A) > 0));
+            SetFlag(ProcessorFlags.Z, ((val & A) == 0));
             IncrementPC(currentInstruction.Length);
         }
 
