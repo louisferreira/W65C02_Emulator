@@ -5,6 +5,9 @@ using W65C02S.Bus.EventArgs;
 using W65C02S.CPU;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections;
+using W65C02S.MemoryMappedDevice;
+using System.Collections.ObjectModel;
 
 namespace W65C02S.Engine
 {
@@ -16,12 +19,12 @@ namespace W65C02S.Engine
 
     public class Emulator : IDisposable
     {
-
+        
         private RunMode mode = RunMode.Debug;
         private readonly Bus.Bus bus;
         private CPUCore cpu;
         private List<ushort> BreakPoints;
-
+        private List<IBaseIODevice> connectedDevices;
         public RunMode Mode
         {
             get
@@ -34,15 +37,26 @@ namespace W65C02S.Engine
             }
         }
 
+
+
         public Emulator(Bus.Bus bus)
         {
             BreakPoints = new List<ushort>();
+            connectedDevices = new List<IBaseIODevice>();
             this.bus = bus;
             cpu = new CPUCore(this.bus);
             bus.Subscribe<ExceptionEventArg>(OnError);
         }
 
-        
+        public void AddDevice(IBaseIODevice device)
+        {
+            connectedDevices.Add(device);
+        }
+        public ReadOnlyCollection<IBaseIODevice> GetConnectedDevices()
+        {
+            return new ReadOnlyCollection<IBaseIODevice>(connectedDevices);
+        }
+
         public byte ReadMemoryLocation(ushort address)
         {
             

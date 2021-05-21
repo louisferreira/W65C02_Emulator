@@ -13,9 +13,11 @@ namespace W65C02S.Console
 {
     class Program
     {
+        private static string appTitle = "W65C02 Emulator";
         private static SemaphoreSlim semaphore;
+        private static Queue<ushort> lastInstructions;
         private static Process p;
-        private const int maxColumns = 120;
+        private const int maxColumns = 128;
         private const int maxRows = 40;
 
         private const int clientAreaHeight = 34;
@@ -30,29 +32,29 @@ namespace W65C02S.Console
         private static Emulator emulator;
         private static Bus.Bus bus;
         private static ROM.ROM rom;
-        private static RAM.RAM ram;
-        private static W6522_Via ioDevice;
-        private static string lastROMFileLoaded = string.Empty;
         private static MenuCollection mainMenu;
         private static MenuCollection subMenu;
 
         static void Main(string[] args)
         {
             semaphore = new SemaphoreSlim(1, 1);
+            lastInstructions = new Queue<ushort>();
             SetupMenuStructure();
 
             System.Console.SetWindowSize(maxColumns, maxRows);
             System.Console.SetBufferSize(maxColumns, maxRows);
-            System.Console.Title = "W65C02 Emulator";
+            System.Console.Title = appTitle;
             System.Console.ForegroundColor = ConsoleColor.Green;
             System.Console.CancelKeyPress += OnCancelKeyPress;
             using (bus = new Bus.Bus())
             {
+                rom = new ROM.ROM("ROM", bus, 0x9000, 0xFFFF, DataBusMode.Read);
                 emulator = new Emulator(bus);
-                //ram = new RAM.RAM(bus, 0, 0x7FFF, DataBusMode.ReadWrite);
-                //ioDevice = new W6522_Via(bus, 0x8000, 0x8FFF, DataBusMode.ReadWrite);
-                //rom = new ROM.ROM(bus, 0x9000, 0xFFFF, DataBusMode.Read);
-                rom = new ROM.ROM(bus, 0x0000, 0xFFFF, DataBusMode.ReadWrite);
+                emulator.AddDevice(new RAM.RAM("RAM", bus, 0, 0x7FFF, DataBusMode.ReadWrite));
+                emulator.AddDevice(new W6522_Via("Video Memory", bus, 0x8000, 0x87FF, DataBusMode.ReadWrite));
+                emulator.AddDevice(new W6522_Via("I/O Device2", bus, 0x8800, 0x8FFF, DataBusMode.ReadWrite));
+                emulator.AddDevice(rom);
+
 
                 bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
                 bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
@@ -198,37 +200,28 @@ namespace W65C02S.Console
                 System.Console.CursorVisible = false;
                 return;
             }
-            if (input.Key == ConsoleKey.Enter && string.IsNullOrEmpty(lastROMFileLoaded))
+            if (input.Key == ConsoleKey.Enter)
             {
                 System.Console.CursorVisible = false;
                 return;
             }
 
             string filePath = "";
-            char? capturedChar = default;
-            if (!string.IsNullOrEmpty(lastROMFileLoaded))
-            {
-                capturedChar = null;
-                filePath = lastROMFileLoaded;
-            }
-            else
-            {
-                capturedChar = input.KeyChar;
-                filePath = System.Console.ReadLine();
-            }
+            filePath = input.KeyChar +  System.Console.ReadLine();
 
             System.Console.CursorVisible = false;
             if (string.IsNullOrEmpty(filePath))
                 return;
 
-            filePath = $"{capturedChar}{filePath}";
             //// debug
             if (filePath == "xxx")
                 filePath = "C:\\Assemblers\\as65\\65c02_extended_opcodes_test.bin";
             //// debug
             if (!System.IO.File.Exists(filePath))
             {
+                System.Console.ForegroundColor = ConsoleColor.Red;
                 System.Console.WriteLine($"Cannot find the file '{filePath}'");
+                System.Console.ForegroundColor = ConsoleColor.Green;
                 System.Console.Write("Enter full path to file:> ");
                 goto WaitForInput;
             }
@@ -239,9 +232,11 @@ namespace W65C02S.Console
             var data = System.IO.File.ReadAllBytes(filePath);
 
 
-            if (data.Length > (rom.EndAddress - rom.StartAddress))
+            if (data.Length > (rom.EndAddress - rom.StartAddress+1))
             {
-                System.Console.WriteLine($"Binary file is too big. ROM size is 32768 bytes, and this file is {data.Length} bytes");
+                System.Console.ForegroundColor = ConsoleColor.Red;
+                System.Console.WriteLine($"Binary file is too big. ROM size is {(rom.EndAddress - rom.StartAddress + 1)} bytes, and this file is {data.Length} bytes");
+                System.Console.ForegroundColor = ConsoleColor.Green;
                 System.Console.Write("Enter full path to file:> ");
                 goto WaitForInput;
             }
@@ -250,8 +245,10 @@ namespace W65C02S.Console
             if (data.Length < (rom.EndAddress - rom.StartAddress))
             {
                 System.Console.WriteLine();
+                System.Console.ForegroundColor = ConsoleColor.Red;
                 System.Console.WriteLine($"Binary file is smaller than ROM size. Do you want to off set this to the end of the ROM?");
                 System.Console.Write("[Y] to offset, [any other key] to load at start of ROM:> ");
+                System.Console.ForegroundColor = ConsoleColor.Green;
                 offset = (System.Console.ReadKey().Key == ConsoleKey.Y);
             }
 
@@ -265,7 +262,7 @@ namespace W65C02S.Console
                 loadbin.Text += " \u221A";
 
             var startAddr = offset ? (rom.EndAddress - data.Length + 1) : (rom.StartAddress);
-            lastROMFileLoaded = filePath;
+            System.Console.Title = $"{appTitle} - {filePath}";
             System.Console.WriteLine();
             System.Console.WriteLine();
             System.Console.WriteLine($"Loaded {data.Length} bytes into ROM starting at location ${startAddr:X4}");
@@ -286,22 +283,25 @@ namespace W65C02S.Console
             var right = System.Console.BufferWidth / 2;
             foreach (var menu in subMenu.Items)
             {
-                if (row > mainMenu.NumberOfLines - 1)
+                if(!menu.Hidden)
                 {
-                    System.Console.CursorTop = row - mainMenu.NumberOfLines + 1;
-                    System.Console.CursorLeft = right;
-                }
-                else
-                {
-                    System.Console.CursorTop = row;
-                    System.Console.CursorLeft = 0;
-                }
-                row++;
+                    if (row > subMenu.NumberOfLines - 1)
+                    {
+                        System.Console.CursorTop = row - subMenu.NumberOfLines + 1;
+                        System.Console.CursorLeft = right;
+                    }
+                    else
+                    {
+                        System.Console.CursorTop = row;
+                        System.Console.CursorLeft = 0;
+                    }
+                    row++;
 
-                System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+                    System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+                }
             }
 
-            System.Console.CursorTop = mainMenu.NumberOfLines + 1;
+            System.Console.CursorTop = subMenu.NumberOfLines + 1;
             System.Console.CursorLeft = 0;
             System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
 
@@ -547,12 +547,13 @@ namespace W65C02S.Console
             System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 1);
             System.Console.Write("".PadRight(maxColumns, '-'));
             System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 2);
-            System.Console.Write("Address:$---- | A:$-- X:$-- Y:$-- | SP:$---- | ST:-------- | PC: $---- |                        Clock Ticks:------------");
+            System.Console.Write("    | A:$-- X:$-- Y:$-- | SP:$---- | ST:-------- | PC:$---- |Clock Ticks:          |");
             System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 3);
             System.Console.Write("".PadRight(maxColumns, '-'));
             System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 4);
             lastInstructionPos = topOffset + subMenu.NumberOfLines + 4;
             emulatorStarted = true;
+            emulator.Reset();
 
             if(!binaryFileLoaded)
             {
@@ -754,6 +755,7 @@ namespace W65C02S.Console
 
         private static void DisplayRegisters(byte A, byte X, byte Y, byte ST, ushort SP, ushort PC, double clockTicks)
         {
+            //   | A:$-- X:$-- Y:$-- | SP:$---- | ST:-------- | PC:$---- |Clock Ticks:          |
             var topOffset = subMenu.NumberOfLines + 2;
             currentStackPointer = SP;
 
@@ -762,46 +764,46 @@ namespace W65C02S.Console
             System.Console.ForegroundColor = ConsoleColor.DarkYellow;
             System.Console.SetCursorPosition(0, topOffset);
 
-            System.Console.CursorLeft = 19; System.Console.Write($"{A:X2}");
-            System.Console.CursorLeft = 25; System.Console.Write($"{X:X2}");
-            System.Console.CursorLeft = 31; System.Console.Write($"{Y:X2}");
+            System.Console.CursorLeft = 9; System.Console.Write($"{A:X2}");
+            System.Console.CursorLeft = 15; System.Console.Write($"{X:X2}");
+            System.Console.CursorLeft = 21; System.Console.Write($"{Y:X2}");
 
-            System.Console.CursorLeft = 40; System.Console.Write($"{SP:X4}");
+            System.Console.CursorLeft = 30; System.Console.Write($"{SP:X4}");
 
-            System.Console.CursorLeft = 50;
+            System.Console.CursorLeft = 40;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.N) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"N");
 
-            System.Console.CursorLeft = 51;
+            System.Console.CursorLeft = 41;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.V) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"V");
 
-            System.Console.CursorLeft = 52;
+            System.Console.CursorLeft = 42;
             System.Console.ForegroundColor = ConsoleColor.Yellow;
             System.Console.Write($"1");
 
-            System.Console.CursorLeft = 53;
+            System.Console.CursorLeft = 43;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.B) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"B");
 
-            System.Console.CursorLeft = 54;
+            System.Console.CursorLeft = 44;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.D) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"D");
 
-            System.Console.CursorLeft = 55;
+            System.Console.CursorLeft = 45;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.I) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"I");
 
-            System.Console.CursorLeft = 56;
+            System.Console.CursorLeft = 46;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.Z) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"Z");
 
-            System.Console.CursorLeft = 57;
+            System.Console.CursorLeft = 47;
             System.Console.ForegroundColor = emulator.IsFlagSet(ProcessorFlags.C) ? ConsoleColor.Yellow : ConsoleColor.DarkYellow;
             System.Console.Write($"C");
 
-            System.Console.CursorLeft = 66; System.Console.Write($"{PC:X4}");
-            System.Console.CursorLeft = 108; System.Console.Write($"{clockTicks}".PadLeft(12, ' '));
+            System.Console.CursorLeft = 55; System.Console.Write($"{PC:X4}");
+            System.Console.CursorLeft = 74; System.Console.Write($"{clockTicks}");
 
             System.Console.ForegroundColor = ConsoleColor.Green;
             System.Console.SetCursorPosition(0, topOffset + 1);
@@ -838,6 +840,24 @@ namespace W65C02S.Console
         {
             semaphore.Wait();
             ShowLastInstruction(e.DecodedInstruction, e.RawData, e.PC);
+            var opCode = e.CurrentInstruction.OpCode;
+            lastInstructions.Enqueue(opCode);
+
+            if(lastInstructions.Count == 8)
+            {
+                if (lastInstructions.All(x => x == opCode))
+                {
+                    if(emulator.Mode == RunMode.Run)
+                        DisplayError("Potential endless loop detected! Emulator now in Debug mode", ExceptionType.Warning);
+                    
+                    emulator.Mode = RunMode.Debug;
+                    lastInstructions.Clear();
+                }
+                else
+                    lastInstructions.Dequeue();
+            }
+                
+            
             semaphore.Release();
         }
         private static void OnInstructionExecuted(OnInstructionExecutedEventArg e)
@@ -915,6 +935,104 @@ namespace W65C02S.Console
         }
         #endregion
 
+        #region System Configuration
+        private static void ShowSystemConfiguration(int arg1, int arg2)
+        {
+            System.Console.Clear();
+            CreateSubMenuHeading("Memory Map & System Configuration");
+
+            var row = 1;
+            var right = System.Console.BufferWidth / 2;
+            if (subMenu != null)
+            {
+                foreach (var menu in subMenu.Items)
+                {
+                    if (row > subMenu.NumberOfLines - 1)
+                    {
+                        System.Console.CursorTop = row - subMenu.NumberOfLines + 1;
+                        System.Console.CursorLeft = right;
+                    }
+                    else
+                    {
+                        System.Console.CursorTop = row;
+                        System.Console.CursorLeft = 0;
+                    }
+                    row++;
+
+                    System.Console.Write($" {menu.ShortcutKey.ToString().PadLeft(6, ' ')} - {menu.Text}");
+                }
+
+                System.Console.CursorTop = subMenu.NumberOfLines + 1;
+            }
+            System.Console.CursorLeft = 0;
+            System.Console.WriteLine("".PadRight(maxColumns - 1, '-'));
+
+            
+
+            var mappedDevices = emulator.GetConnectedDevices();
+            var index = 11;
+            int deviceMemSize = 0;
+
+            foreach (var device in mappedDevices)
+            {
+                System.Console.ForegroundColor = (ConsoleColor)index;
+                System.Console.WriteLine($" {device.DeviceName.ToString().PadRight(20, ' ')}: ${device.StartAddress:X4}-${device.EndAddress:X4}  ({device.EndAddress - device.StartAddress+1} bytes)");
+                index++;
+            }
+            System.Console.CursorTop = subMenu.NumberOfLines + 7;
+            System.Console.ForegroundColor = ConsoleColor.Green;
+            System.Console.Write("$0000");
+            System.Console.CursorLeft = maxColumns - 6;
+            System.Console.Write("$FFFF");
+
+            index = 11;
+            foreach (var device in mappedDevices)
+            {
+                deviceMemSize = device.EndAddress - device.StartAddress + 1;
+                var left = (int)(((decimal)device.StartAddress / (decimal)65536) * (decimal)maxColumns);
+                var width = (int)(((decimal)deviceMemSize / 65536) * (decimal)maxColumns);
+
+                System.Console.CursorTop = subMenu.NumberOfLines + 8;
+
+                for (int x = 0; x < 4; x++)
+                {
+                    System.Console.CursorLeft = left;
+                    System.Console.ForegroundColor = (ConsoleColor)index;
+                    if(device == mappedDevices.Last())
+                        System.Console.Write("".PadRight(width-1, '|'));
+                    else
+                        System.Console.Write("".PadRight(width, '|'));
+
+                    System.Console.CursorTop++;
+                }
+
+
+                index++;
+            }
+
+
+        WaitForSelection:
+            System.Console.ForegroundColor = ConsoleColor.Green;
+            var input = System.Console.ReadKey();
+
+            var selected = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selected != null)
+            {
+                if (selected.ShortcutKey == ConsoleKey.Escape)
+                    return;
+            }
+
+
+            
+
+
+            goto WaitForSelection;
+
+
+        }
+
+        #endregion
+
         private static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
         {
             emulator.Mode = RunMode.Debug;
@@ -973,11 +1091,11 @@ namespace W65C02S.Console
         }
         private static void OnAddressChanged(AddressBusEventArgs arg)
         {
-            semaphore.Wait();
-            UpdateAddressDisplay(arg);
+            //semaphore.Wait(10000);
+            //UpdateAddressDisplay(arg);
             if (showDeviceActivity)
                 UpdateDeviceActivity(arg);
-            semaphore.Release();
+            //semaphore.Release();
         }
         private static void CreateSubMenuHeading(string headingText)
         {
@@ -1046,19 +1164,20 @@ namespace W65C02S.Console
 
         private static void SetupMenuStructure()
         {
+            var menuHeight = 7;
             mainMenu = new MenuCollection();
-            mainMenu.NumberOfLines = 7;
+            mainMenu.NumberOfLines = menuHeight;
             mainMenu.Items = new List<MenuItem> {
                 new MenuItem { Index = 1, Text = "Load Binary Image into ROM", ShortcutKey = ConsoleKey.F1, MenuAction = DisplayLoadROMFile },
-                new MenuItem { Index = 2, Text = "Memory Monitor", ShortcutKey = ConsoleKey.F2, MenuAction = DisplayMonitor, ChildMenuItems = new MenuCollection { NumberOfLines = 7,
+                new MenuItem { Index = 2, Text = "Memory Monitor", ShortcutKey = ConsoleKey.F2, MenuAction = DisplayMonitor, ChildMenuItems = new MenuCollection { NumberOfLines = menuHeight,
                     Items = new List<MenuItem> {
                         { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
                         { new MenuItem { Index = 2, Text = "View Memory Page", ShortcutKey = ConsoleKey.F2, MenuAction = Monitor_DisplayPage} },
                         { new MenuItem { Index = 3, Text = "Edit Memory Location", ShortcutKey = ConsoleKey.F3, MenuAction = Monitor_EditLocation} },
-                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                        { new MenuItem {Index = 99,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
                     }
                 } },
-                new MenuItem {Index = 3, Text = "Start Emulator", ShortcutKey = ConsoleKey.F3, MenuAction = DisplayEmulator, ChildMenuItems = new MenuCollection { NumberOfLines = 7, 
+                new MenuItem {Index = 3, Text = "Start Emulator", ShortcutKey = ConsoleKey.F3, MenuAction = DisplayEmulator, ChildMenuItems = new MenuCollection { NumberOfLines = menuHeight, 
                     Items = new List<MenuItem>
                     {
                         { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
@@ -1071,18 +1190,16 @@ namespace W65C02S.Console
                         { new MenuItem { Index = 8, Text = "Add/Remove Breakpoint", ShortcutKey = ConsoleKey.F9, MenuAction = DisplayBreakPoints} },
                         { new MenuItem { Index = 9, Text = "Step next Instruction", ShortcutKey = ConsoleKey.F10, MenuAction = StepNextInstruction} },
                         { new MenuItem { Index = 10, Text = "Reset CPU", ShortcutKey = ConsoleKey.F12, MenuAction = ResetEmulator} },
-                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                        { new MenuItem {Index = 99,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
                     }
                 } },
-                new MenuItem {Index = 4, Text = "OpCode Viewer Application", ShortcutKey = ConsoleKey.F8, MenuAction = ShowOpCodeApplication},
-                new MenuItem {Index = 5, Text = "Disassembler", ShortcutKey = ConsoleKey.F4, MenuAction = DisplayDisassembler, Hidden = true, ChildMenuItems = new MenuCollection { NumberOfLines = 7,
-                    Items = new List<MenuItem>
-                    {
-                        { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
-                        { new MenuItem {Index = 4,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
+                new MenuItem {Index = 4, Text = "OpCode Viewer Application", ShortcutKey = ConsoleKey.F4, MenuAction = ShowOpCodeApplication},
+                new MenuItem {Index = 4, Text = "View Memory Map (System configuration)", ShortcutKey = ConsoleKey.F5, MenuAction = ShowSystemConfiguration, ChildMenuItems = new MenuCollection { NumberOfLines = 2,
+                    Items = new List<MenuItem> {
+                        { new MenuItem {Index = 99,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
                     }
-                } },
-                new MenuItem {Index = 6,Text = "Exit",ShortcutKey = ConsoleKey.Escape}
+                }},
+                new MenuItem {Index = 99,Text = "Exit",ShortcutKey = ConsoleKey.Escape}
             };
 
         }

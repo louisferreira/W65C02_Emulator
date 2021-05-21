@@ -8,11 +8,10 @@ namespace W65C02S.ROM
 {
     public class ROM : BaseIODevice
     {
-        public ROM(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(bus, startAddress, endAddress, mode)
+        public ROM(string deviceName, Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(deviceName, bus, startAddress, endAddress, mode)
         {
             bus.Subscribe<RomLoadArgs>(Load);
         }
-        protected override string DeviceName => nameof(ROM);
 
         public void Load(RomLoadArgs arg)
         {

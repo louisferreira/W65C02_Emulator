@@ -8,9 +8,8 @@ namespace W65C02S.RAM
 {
     public class RAM : BaseIODevice
     {
-        protected override string DeviceName => nameof(RAM);
 
-        public RAM(Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(bus, startAddress, endAddress, mode)
+        public RAM(string deviceName, Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(deviceName, bus, startAddress, endAddress, mode)
         {
             // initialise stack
             for (int index = startAddress; index < endAddress; index++)
