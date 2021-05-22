@@ -1,5 +1,6 @@
 ﻿using System;
 using W65C02S.Bus;
+using W65C02S.CPU;
 using W65C02S.MemoryMappedDevice;
 
 namespace W65C02S.InputOutput.Devices
@@ -11,6 +12,14 @@ namespace W65C02S.InputOutput.Devices
         {
         }
 
+        protected override void ExecuteAddressAction(AddressBusEventArgs arg)
+        {
+            base.ExecuteAddressAction(arg);
 
+            if (arg.Mode == DataBusMode.Write && arg.Address == 0x8000)
+            {
+                memory[arg.Address - startAddress] = 0xAF;
+            }
+        }
     }
 }

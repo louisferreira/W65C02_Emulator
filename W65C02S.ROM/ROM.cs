@@ -10,6 +10,11 @@ namespace W65C02S.ROM
     {
         public ROM(string deviceName, Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(deviceName, bus, startAddress, endAddress, mode)
         {
+            for (int index = 0; index < memory.Length; index++)
+            {
+                memory[index] = 0xFF;
+            }
+
             bus.Subscribe<RomLoadArgs>(Load);
         }
 

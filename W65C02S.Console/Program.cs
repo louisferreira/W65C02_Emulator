@@ -34,6 +34,7 @@ namespace W65C02S.Console
         private static ROM.ROM rom;
         private static MenuCollection mainMenu;
         private static MenuCollection subMenu;
+        private static MenuItem selectedMenuItem;
 
         static void Main(string[] args)
         {
@@ -129,13 +130,13 @@ namespace W65C02S.Console
 
             var input = System.Console.ReadKey();
 
-            var selected = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
-            if (selected != null)
+            selectedMenuItem = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);
+            if (selectedMenuItem != null)
             {
-                if (selected.ShortcutKey == ConsoleKey.Escape)
+                if (selectedMenuItem.ShortcutKey == ConsoleKey.Escape)
                     return;
-                subMenu = selected.ChildMenuItems;
-                selected.MenuAction(0, 0);
+                subMenu = selectedMenuItem.ChildMenuItems;
+                selectedMenuItem.MenuAction(0, 0);
                 goto Reset;
             }
             goto WaitForSelection;
@@ -179,7 +180,7 @@ namespace W65C02S.Console
         private static void DisplayLoadROMFile(int left = 0, int topOffset = 0)
         {
             System.Console.Clear();
-            CreateSubMenuHeading("Load Binary File");
+            CreateSubMenuHeading(selectedMenuItem.Text);
 
             System.Console.WriteLine($"     ROM Address: ${rom.StartAddress:X4} - ${rom.EndAddress:X4}");
             System.Console.WriteLine($"     ROM Size:     {rom.EndAddress - rom.StartAddress} bytes");
@@ -277,7 +278,7 @@ namespace W65C02S.Console
         {
         Reset:
             System.Console.Clear();
-            CreateSubMenuHeading("Memory Monitor");
+            CreateSubMenuHeading(selectedMenuItem.Text);
             showDeviceActivity = false;
             var row = 1;
             var right = System.Console.BufferWidth / 2;
@@ -521,7 +522,7 @@ namespace W65C02S.Console
         private static void DisplayEmulator(int left = 0, int topOffset = 0)
         {
             System.Console.Clear();
-            CreateSubMenuHeading("Emulator");
+            CreateSubMenuHeading(selectedMenuItem.Text);
             var row = 1;
             var right = System.Console.BufferWidth / 2;
             foreach (var menu in subMenu.Items)
@@ -553,9 +554,9 @@ namespace W65C02S.Console
             System.Console.SetCursorPosition(0, topOffset + subMenu.NumberOfLines + 4);
             lastInstructionPos = topOffset + subMenu.NumberOfLines + 4;
             emulatorStarted = true;
-            emulator.Reset();
+            ResetEmulator(left, topOffset);
 
-            if(!binaryFileLoaded)
+            if (!binaryFileLoaded)
             {
                 DisplayError("NO BINARY FILE LOADED. Please go to main menu, and select option to load binary file.", ExceptionType.Warning);
             }
@@ -608,6 +609,7 @@ namespace W65C02S.Console
             emulator.Reset();
             ClearClientArea(true, subMenu.NumberOfLines + 3);
             ClearClientArea(false, subMenu.NumberOfLines + 3);
+            DisplayRegisters(0x00, 0x00, 0x00, 0x00, 0x01FF, 0xFFFC, 0);
         }
 
         private async static void StepNextInstruction(int left = 0, int topOffset = 0)
@@ -891,7 +893,7 @@ namespace W65C02S.Console
         {
             //Reset:
             System.Console.Clear();
-            CreateSubMenuHeading("Disassembler");
+            CreateSubMenuHeading(selectedMenuItem.Text);
             var row = 1;
             var right = System.Console.BufferWidth / 2;
             if(subMenu != null)
@@ -939,7 +941,7 @@ namespace W65C02S.Console
         private static void ShowSystemConfiguration(int arg1, int arg2)
         {
             System.Console.Clear();
-            CreateSubMenuHeading("Memory Map & System Configuration");
+            CreateSubMenuHeading(selectedMenuItem.Text);
 
             var row = 1;
             var right = System.Console.BufferWidth / 2;
@@ -969,7 +971,7 @@ namespace W65C02S.Console
 
             
 
-            var mappedDevices = emulator.GetConnectedDevices();
+            var mappedDevices = emulator.GetConnectedDevices().OrderBy(x => x.StartAddress);
             var index = 11;
             int deviceMemSize = 0;
 
@@ -1177,7 +1179,7 @@ namespace W65C02S.Console
                         { new MenuItem {Index = 99,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
                     }
                 } },
-                new MenuItem {Index = 3, Text = "Start Emulator", ShortcutKey = ConsoleKey.F3, MenuAction = DisplayEmulator, ChildMenuItems = new MenuCollection { NumberOfLines = menuHeight, 
+                new MenuItem {Index = 3, Text = "Emulator", ShortcutKey = ConsoleKey.F3, MenuAction = DisplayEmulator, ChildMenuItems = new MenuCollection { NumberOfLines = menuHeight, 
                     Items = new List<MenuItem>
                     {
                         { new MenuItem { Index = 1, Text = "View Memory Location", ShortcutKey = ConsoleKey.F1, MenuAction = Monitor_DisplayLocation} },
@@ -1194,8 +1196,12 @@ namespace W65C02S.Console
                     }
                 } },
                 new MenuItem {Index = 4, Text = "OpCode Viewer Application", ShortcutKey = ConsoleKey.F4, MenuAction = ShowOpCodeApplication},
-                new MenuItem {Index = 4, Text = "View Memory Map (System configuration)", ShortcutKey = ConsoleKey.F5, MenuAction = ShowSystemConfiguration, ChildMenuItems = new MenuCollection { NumberOfLines = 2,
+                new MenuItem {Index = 4, Text = "System configuration", ShortcutKey = ConsoleKey.F5, MenuAction = ShowSystemConfiguration, ChildMenuItems = new MenuCollection { NumberOfLines = 5,
                     Items = new List<MenuItem> {
+                        { new MenuItem { Index = 1, Text = "Add Memory Mapped Device", ShortcutKey = ConsoleKey.F1, MenuAction = null} },
+                        { new MenuItem { Index = 2, Text = "Remove Memory Mapped Device", ShortcutKey = ConsoleKey.F2, MenuAction = null} },
+                        { new MenuItem { Index = 3, Text = "Edit Memory Mapped Device", ShortcutKey = ConsoleKey.F3, MenuAction = null} },
+                        { new MenuItem { Index = 4, Text = "Save Current Configuration", ShortcutKey = ConsoleKey.F4, MenuAction = null} },
                         { new MenuItem {Index = 99,Text = "Back to main menu",ShortcutKey = ConsoleKey.Escape} }
                     }
                 }},
