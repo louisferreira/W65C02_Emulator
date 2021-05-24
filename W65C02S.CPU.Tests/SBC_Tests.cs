@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using W65C02S.Bus.EventArgs;
 using Xunit;
 
 namespace W65C02S.CPU.Tests

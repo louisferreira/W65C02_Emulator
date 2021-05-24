@@ -1,6 +1,6 @@
 ﻿using System;
 using W65C02S.Bus;
-using W65C02S.CPU;
+using W65C02S.Bus.EventArgs;
 
 namespace W65C02S.MemoryMappedDevice
 {
@@ -17,6 +17,9 @@ namespace W65C02S.MemoryMappedDevice
         public int EndAddress => endAddress;
         public DataBusMode Mode => mode;
         public string DeviceName { get; set; }
+        public bool ChipSelected { get; set; }
+        public bool OutputEnabled { get; set; }
+
         public BaseIODevice(string deviceName, Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode)
         {
             this.bus = bus;

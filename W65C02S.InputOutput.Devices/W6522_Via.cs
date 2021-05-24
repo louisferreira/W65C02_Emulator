@@ -1,6 +1,6 @@
 ﻿using System;
 using W65C02S.Bus;
-using W65C02S.CPU;
+using W65C02S.Bus.EventArgs;
 using W65C02S.MemoryMappedDevice;
 
 namespace W65C02S.InputOutput.Devices

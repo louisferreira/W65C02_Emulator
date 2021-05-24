@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace W65C02S.Bus.EventArgs
 {
-    public class RomLoadArgs
+    public class FlashROMArgs
     {
         public byte[] Data { get; set; }
         public bool UseOffset { get; set; }

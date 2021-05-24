@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using W65C02S.Bus.EventArgs;
 using W65C02S.CPU.Models;
 
 namespace W65C02S.CPU.Tests

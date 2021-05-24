@@ -3,11 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using W65C02S.Engine;
 
 namespace W65C02S.Simulator
 {
     static class Program
     {
+        private static Bus.Bus bus;
+        
+
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
@@ -17,7 +21,12 @@ namespace W65C02S.Simulator
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new frmMDIMain());
+
+            using (var bus = new Bus.Bus())
+            {
+                Application.Run(new frmMDIMain(bus));
+            }
+
         }
     }
 }

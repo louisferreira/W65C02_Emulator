@@ -2,7 +2,7 @@
 using W65C02S.Bus;
 using W65C02S.CPU.Models;
 
-namespace W65C02S.CPU
+namespace W65C02S.Bus.EventArgs
 {
     public class OnInstructionExecutedEventArg
     {

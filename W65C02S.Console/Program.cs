@@ -2,12 +2,12 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using W65C02S.Bus;
-using W65C02S.CPU;
 using W65C02S.Engine;
 using W65C02S.InputOutput.Devices;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using W65C02S.Bus.EventArgs;
 
 namespace W65C02S.Console
 {

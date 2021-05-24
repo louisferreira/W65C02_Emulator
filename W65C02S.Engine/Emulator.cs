@@ -140,7 +140,7 @@ namespace W65C02S.Engine
 
         public void LoadROM(byte[] data, bool offset)
         {
-            var arg = new RomLoadArgs
+            var arg = new FlashROMArgs
             {
                 Data = data,
                 UseOffset = offset

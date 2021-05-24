@@ -12,13 +12,13 @@ namespace W65C02S.ROM
         {
             for (int index = 0; index < memory.Length; index++)
             {
-                memory[index] = 0xFF;
+                memory[index] = 0xEA; // default to NOP
             }
 
-            bus.Subscribe<RomLoadArgs>(Load);
+            bus.Subscribe<FlashROMArgs>(FlashROM);
         }
 
-        public void Load(RomLoadArgs arg)
+        public void FlashROM(FlashROMArgs arg)
         {
             if (arg.Data.Length > memory.Length)
             {

@@ -1,5 +1,6 @@
 ﻿using System;
 using W65C02S.Bus;
+using W65C02S.Bus.EventArgs;
 
 namespace W65C02S.CPU
 {
