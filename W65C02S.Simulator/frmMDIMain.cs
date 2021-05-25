@@ -14,33 +14,29 @@ using W65C02S.MemoryMappedDevice;
 
 namespace W65C02S.Simulator
 {
-    public partial class frmMDIMain : Form
+    public partial class frmMDIMain : BusForm
     {
-        private Bus.Bus bus;
+        
         private ROM.ROM rom;
-        private Emulator emulator;
         private string appTitle = "W65C02 Simulator";
         private bool imageFileLoaded;
 
-        public frmMDIMain(Bus.Bus bus)
+        public frmMDIMain(Bus.Bus bus, Emulator emulator) :base(bus, emulator)
         {
             InitializeComponent();
             this.Text = appTitle;
-
-            this.bus = bus;
-            emulator = new Emulator(bus);
+            
             rom = new ROM.ROM("ROM", bus, 0x9000, 0xFFFF, DataBusMode.Read);
             emulator.AddDevice(rom);
 
-            bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
-            bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-            bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-            bus.Subscribe<ExceptionEventArg>(OnError);
+            //bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
+            //bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+            //bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+            //bus.Subscribe<ExceptionEventArg>(OnError);
 
-            var list = emulator.GetConnectedDevices();
 
         }
-
+/*
         private void OnError(ExceptionEventArg obj)
         {
             throw new NotImplementedException();
@@ -60,7 +56,7 @@ namespace W65C02S.Simulator
         {
             throw new NotImplementedException();
         }
-
+*/
 
 
         private void LoadImageFile()
@@ -77,7 +73,7 @@ namespace W65C02S.Simulator
                 MessageBox.Show("There is no ROM devices connected to the bus. Please add a ROM device", "No ROM Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            
+
             var fileOpen = new OpenFileDialog()
             {
                 CheckFileExists = true,
@@ -98,7 +94,7 @@ namespace W65C02S.Simulator
                     FlashROMData(fileData, rom);
                 this.Text = $"{appTitle} - {file}";
                 imageFileLoaded = true;
-                this.mnuStartEmulator.Enabled = true;
+
             }
         }
         private bool ValidateROMData(byte[] fileData, IBaseIODevice rom)
@@ -108,8 +104,8 @@ namespace W65C02S.Simulator
                 MessageBox.Show("Binary data is too large to fit into ROM.", "Data too Large", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                 return false;
             }
-           
-                return true;
+
+            return true;
         }
         private void FlashROMData(byte[] fileData, IBaseIODevice rom)
         {
@@ -126,36 +122,74 @@ namespace W65C02S.Simulator
 
         }
 
-        
+
 
         private void frmMDIMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             // unregister devices from bus
-            bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
-            bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-            bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-            bus.UnSubscribe<ExceptionEventArg>(OnError);
+            //bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+            //bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+            //bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+            //bus.UnSubscribe<ExceptionEventArg>(OnError);
 
             // discard local references
-            emulator.Dispose();
+
         }
 
-        private void openToolStripButton_Click(object sender, EventArgs e)
-        {
-            
-            LoadImageFile();
-        }
 
-        private void mnuOpenFile_Click(object sender, EventArgs e)
+        private void LoadEmulatorForm()
         {
-            LoadImageFile();
-        }
-
-        private void mnuStartEmulator_Click(object sender, EventArgs e)
-        {
-            var formEmulator = new frmEmulator();
+            var formEmulator = new frmEmulator(bus, emulator);
             formEmulator.MdiParent = this;
             formEmulator.Show();
+        }
+
+        private void ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            //LoadImageFile();
+            var thisItem = (ToolStripMenuItem)sender;
+
+            switch (thisItem.Name)
+            {
+                case "newToolStripMenuItem": 
+                    break;
+                case "openToolStripMenuItem":
+                    LoadImageFile();
+                    if(imageFileLoaded) 
+                        LoadEmulatorForm();
+                    break;
+                case "toolStripSeparator": 
+                    break;
+                case "saveToolStripMenuItem": 
+                    break;
+                case "saveAsToolStripMenuItem": 
+                    break;
+                case "printToolStripMenuItem": 
+                    break;
+                case "printPreviewToolStripMenuItem": 
+                    break;
+                case "exitToolStripMenuItem": 
+                    break;
+                case "customizeToolStripMenuItem": 
+                    break;
+                case "optionsToolStripMenuItem": 
+                    break;
+                case "contentsToolStripMenuItem": 
+                    break;
+                case "indexToolStripMenuItem": 
+                    break;
+                case "searchToolStripMenuItem": 
+                    break;
+                case "toolStripSeparator5": 
+                    break;
+                case "aboutToolStripMenuItem": 
+                    break;
+
+                default:
+                    MessageBox.Show($"{thisItem.Name} menuItem not handled");
+                    break;
+            }
+
         }
     }
 }

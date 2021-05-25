@@ -1,0 +1,27 @@
+/*
+  This file contains the mapping configuration. 
+  You can set up your own memory mapped locations here and specify ReadOnly, WriteOnly or ReadWrite modes. 
+  Notes:
+  Address values are hex 
+  Ensure that there is a device called 'ROM' added (the system looks for this by name)
+ */
+[
+  {
+    "DeviceName": "RAM",
+    "StartAddress": "0000",
+    "EndAddress": "7FFF",
+    "Mode": "ReadWrite"
+  },
+  {
+    "DeviceName": "I/O Device",
+    "StartAddress": "8800",
+    "EndAddress": "8FFF",
+    "Mode": "WriteOnly"
+  },
+  {
+    "DeviceName": "ROM",
+    "StartAddress": "9000",
+    "EndAddress": "FFFF",
+    "Mode": "ReadOnly"
+  }
+]

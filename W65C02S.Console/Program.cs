@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using W65C02S.Bus.EventArgs;
+using Newtonsoft.Json;
 
 namespace W65C02S.Console
 {
@@ -41,6 +42,7 @@ namespace W65C02S.Console
             semaphore = new SemaphoreSlim(1, 1);
             lastInstructions = new Queue<ushort>();
             SetupMenuStructure();
+            var devices = LoadConfig();
 
             System.Console.SetWindowSize(maxColumns, maxRows);
             System.Console.SetBufferSize(maxColumns, maxRows);
@@ -49,12 +51,33 @@ namespace W65C02S.Console
             System.Console.CancelKeyPress += OnCancelKeyPress;
             using (bus = new Bus.Bus())
             {
-                rom = new ROM.ROM("ROM", bus, 0x9000, 0xFFFF, DataBusMode.Read);
                 emulator = new Emulator(bus);
-                emulator.AddDevice(new RAM.RAM("RAM", bus, 0, 0x7FFF, DataBusMode.ReadWrite));
-                emulator.AddDevice(new W6522_Via("Video Memory", bus, 0x8000, 0x87FF, DataBusMode.ReadWrite));
-                emulator.AddDevice(new W6522_Via("I/O Device2", bus, 0x8800, 0x8FFF, DataBusMode.ReadWrite));
-                emulator.AddDevice(rom);
+
+                //rom = new ROM.ROM("ROM", bus, 0x9000, 0xFFFF, DataBusMode.Read);
+                //emulator.AddDevice(new RAM.RAM("RAM", bus, 0, 0x7FFF, DataBusMode.ReadWrite));
+                //emulator.AddDevice(new W6522_Via("Video Memory", bus, 0x8000, 0x87FF, DataBusMode.ReadWrite));
+                //emulator.AddDevice(new W6522_Via("I/O Device2", bus, 0x8800, 0x8FFF, DataBusMode.ReadWrite));
+                //emulator.AddDevice(rom);
+
+                foreach (var device in devices)
+                {
+                    var startAddress = ushort.Parse(device.StartAddress, System.Globalization.NumberStyles.HexNumber);
+                    var endAddress = ushort.Parse(device.EndAddress, System.Globalization.NumberStyles.HexNumber);
+                    DataBusMode mode = device.Mode == "ReadWrite"
+                        ? DataBusMode.ReadWrite
+                        : (device.Mode == "ReadOnly") ? DataBusMode.Read : DataBusMode.Write;
+
+                    if (device.DeviceName.ToUpper() == "ROM")
+                    {
+                        rom = new ROM.ROM("ROM", bus, startAddress, endAddress, mode);
+                        emulator.AddDevice(rom);
+                    }
+                    else
+                    {
+                        emulator.AddDevice(new RAM.RAM(device.DeviceName, bus, startAddress, endAddress, mode));
+                    }
+
+                }
 
 
                 bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
@@ -91,6 +114,25 @@ namespace W65C02S.Console
                 p.Kill(true);
 
             System.Console.WriteLine("Bye!");
+        }
+
+        private static List<MapConfig> LoadConfig()
+        {
+            if (!System.IO.File.Exists(".\\config.json"))
+                return default;
+
+            try
+            {
+                var jsonData = System.IO.File.ReadAllText(".\\config.json");
+                var items = JsonConvert.DeserializeObject<IEnumerable<MapConfig>>(jsonData);
+                return (List<MapConfig>)items;
+            }
+            catch (Exception ex)
+            {
+                DisplayError(ex.Message, ExceptionType.Error);
+            }
+
+            return default;
         }
 
         #region Main Menu
@@ -1012,9 +1054,12 @@ namespace W65C02S.Console
                 index++;
             }
 
+            System.Console.ForegroundColor = ConsoleColor.Green;
+            System.Console.WriteLine();
+            System.Console.WriteLine();
+            System.Console.WriteLine("These mappings can now be configured in the config.json file");
 
         WaitForSelection:
-            System.Console.ForegroundColor = ConsoleColor.Green;
             var input = System.Console.ReadKey();
 
             var selected = mainMenu.Items.FirstOrDefault(x => x.ShortcutKey == input.Key);

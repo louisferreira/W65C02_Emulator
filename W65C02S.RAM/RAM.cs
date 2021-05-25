@@ -12,10 +12,10 @@ namespace W65C02S.RAM
         public RAM(string deviceName, Bus.Bus bus, ushort startAddress, ushort endAddress, DataBusMode mode) : base(deviceName, bus, startAddress, endAddress, mode)
         {
             // initialise 
-            for (int index = startAddress; index < endAddress; index++)
-            {
-                memory[index] = 0xFF;
-            }
+            //for (int index = startAddress; index < endAddress; index++)
+            //{
+            //    memory[index] = 0xFF;
+            //}
         }
     }
 }

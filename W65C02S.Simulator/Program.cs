@@ -10,8 +10,7 @@ namespace W65C02S.Simulator
     static class Program
     {
         private static Bus.Bus bus;
-        
-
+        private static Emulator emulator;
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
@@ -24,7 +23,10 @@ namespace W65C02S.Simulator
 
             using (var bus = new Bus.Bus())
             {
-                Application.Run(new frmMDIMain(bus));
+                using (Emulator emulator = new Emulator(bus))
+                {
+                    Application.Run(new frmMDIMain(bus, emulator));
+                }
             }
 
         }
