@@ -1,19 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using W65C02S.Bus;
-using W65C02S.Bus.EventArgs;
-using W65C02S.CPU.Models;
-using W65C02S.Engine.Parsers;
+using W65C02.API.Enums;
+using W65C02.API.EventArgs;
+using W65C02.API.Interfaces;
+using W65C02.API.Models;
+using W65C02.API.Parsers;
 
 namespace W65C02S.CPU
 {
     public partial class CPUCore : IDisposable
     {
-        private SemaphoreSlim semaphore;
+        private readonly SemaphoreSlim semaphore;
         private ulong clockTicks = 0;           // 0 to 18,446,744,073,709,551,615
         private byte? fetchedByte;
         private ushort? operandAddress;
@@ -26,34 +25,34 @@ namespace W65C02S.CPU
         private const ushort IRQ_Vect = 0x0FFFE;
         private const ushort Rest_Vect = 0x0FFFC;
         private const ushort NMI_Vect = 0x0FFFA;
-        
-        private readonly Bus.Bus bus;
+
+        private readonly IBus bus;
 
         /// <summary>
         /// Accumulator Register
         /// </summary>
         public byte A { get; set; }             // Accumulator Register
-        
+
         /// <summary>
         /// X Index Register
         /// </summary>
         public byte X { get; set; }             // X Register
-        
+
         /// <summary>
         /// Y Index Register
         /// </summary>
         public byte Y { get; set; }             // Y Register
-        
+
         /// <summary>
         /// Stack Pointer Register
         /// </summary>
         public ushort SP { get; set; }          // Stack Pointer
-        
+
         /// <summary>
         /// Program Counter Register
         /// </summary>
         public ushort PC { get; set; }          // Program Counter
-        
+
         /// <summary>
         /// Processor Status Register
         /// </summary>
@@ -62,7 +61,7 @@ namespace W65C02S.CPU
         public List<Instruction> InstructionTable => this.instructionTable;
 
 
-        public CPUCore(Bus.Bus bus)
+        public CPUCore(IBus bus)
         {
             semaphore = new SemaphoreSlim(1, 1);
             this.bus = bus;
@@ -71,7 +70,7 @@ namespace W65C02S.CPU
             SetupInstructionTable();
         }
 
-        
+
         private void Initialise()
         {
             clockTicks = 0;
@@ -88,7 +87,7 @@ namespace W65C02S.CPU
 
             // initialise stack
             SP = 0x01FF;
-            
+
             clockTicks = 5;
             PC = Rest_Vect;
             ReadValueFromAddress(PC);
@@ -121,9 +120,13 @@ namespace W65C02S.CPU
             if (interuptRequested)
             {
                 if (interuptMasked)
+                {
                     HandleNMI();
+                }
                 else
+                {
                     HandleIRQ();
+                }
 
                 interuptRequested = false;
                 return;
@@ -150,7 +153,7 @@ namespace W65C02S.CPU
                     RaiseInstructionExecuting();
                     Execute(currentInstruction);
                 }
-                catch (NotImplementedException ex)
+                catch (NotImplementedException)
                 {
                     stopCmdAsserted = true;
                     var e = new ExceptionEventArg() { ErrorMessage = $"OpCode [${currentInstruction.OpCode:X2} ({currentInstruction.Mnemonic})]  not Implemented".PadRight(100, ' ') };
@@ -162,9 +165,10 @@ namespace W65C02S.CPU
                     var e = new ExceptionEventArg() { ErrorMessage = x.Message.PadRight(100, ' ') };
                     bus?.Publish(e);
                 }
-                finally {
+                finally
+                {
                     RaiseInstructionExecuted();
-                    if(currentInstruction.Mnemonic == "STP" || currentInstruction.Mnemonic == "WAI")
+                    if (currentInstruction.Mnemonic == "STP" || currentInstruction.Mnemonic == "WAI")
                     {
                         var e = new ExceptionEventArg() { ErrorMessage = $"Processor halted with SToP/WAIt instruction...".PadRight(100, ' '), ExceptionType = ExceptionType.Warning };
                         bus?.Publish(e);
@@ -176,14 +180,14 @@ namespace W65C02S.CPU
             else
             {
                 stopCmdAsserted = true;
-                var e = new ExceptionEventArg() { ErrorMessage = $"Unknown instruction: ${fetchedByte:X2}".PadRight(100, ' ')};
+                var e = new ExceptionEventArg() { ErrorMessage = $"Unknown instruction: ${fetchedByte:X2}".PadRight(100, ' ') };
                 bus?.Publish(e);
             }
             semaphore.Release();
         }
         public void Execute(Instruction newInstruction)
         {
-            if(currentInstruction == null)
+            if (currentInstruction == null)
             {
                 currentInstruction = newInstruction;
             }
@@ -195,7 +199,9 @@ namespace W65C02S.CPU
         private void IncrementPC(sbyte amount = 1)
         {
             if (amount == 0)
+            {
                 return;
+            }
 
             PC += (ushort)amount;
 
@@ -208,7 +214,9 @@ namespace W65C02S.CPU
         private void IncrementPC(byte amount = 1)
         {
             if (amount == 0)
+            {
                 return;
+            }
 
             PC += amount;
 
@@ -239,9 +247,13 @@ namespace W65C02S.CPU
         void SetFlag(ProcessorFlags flag, bool isOn)
         {
             if (isOn)
+            {
                 ST |= flag;
+            }
             else
+            {
                 ST &= ~flag;
+            }
         }
 
         public bool IsFlagSet(ProcessorFlags flag)
@@ -312,7 +324,7 @@ namespace W65C02S.CPU
 
         private void OnInteruptRequest(InteruptRequestEventArgs arg)
         {
-            if(arg.InteruptType == InteruptType.IRQ)
+            if (arg.InteruptType == InteruptType.IRQ)
             {
                 if (!IsFlagSet(ProcessorFlags.I))
                 {
@@ -329,7 +341,7 @@ namespace W65C02S.CPU
 
         private void HandleIRQ()
         {
-            if( !IsFlagSet(ProcessorFlags.I))
+            if (!IsFlagSet(ProcessorFlags.I))
             {
                 // save return address to stack, hi byte first then lo byte
                 var retAddr = (PC + currentInstruction.Length);

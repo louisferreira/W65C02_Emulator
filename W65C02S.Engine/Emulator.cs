@@ -1,30 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
-using W65C02S.Bus;
-using W65C02S.Bus.EventArgs;
 using W65C02S.CPU;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections;
-using W65C02S.MemoryMappedDevice;
 using System.Collections.ObjectModel;
+using W65C02.API.Enums;
+using W65C02.API.EventArgs;
+using W65C02.API.Interfaces;
+using W65C02S.MappingManager;
 
 namespace W65C02S.Engine
 {
-    public enum RunMode
+    public class Emulator : IDisposable, IEmulator
     {
-        Debug = 0,
-        Run = 1
-    }
 
-    public class Emulator : IDisposable
-    {
-        
         private RunMode mode = RunMode.Debug;
-        private readonly Bus.Bus bus;
+        private readonly IBus bus;
+        private AddressDecoder addressDecoder;
         private CPUCore cpu;
         private List<ushort> BreakPoints;
-        private List<IBaseIODevice> connectedDevices;
+        private List<IMemoryMappedDevice> connectedDevices;
         public RunMode Mode
         {
             get
@@ -39,27 +35,29 @@ namespace W65C02S.Engine
 
 
 
-        public Emulator(Bus.Bus bus)
+        public Emulator(IBus bus, List<W65C02.API.Models.MapConfig> devices)
         {
             BreakPoints = new List<ushort>();
-            connectedDevices = new List<IBaseIODevice>();
+            connectedDevices = new List<IMemoryMappedDevice>();
             this.bus = bus;
+            addressDecoder = new AddressDecoder(bus, devices);
+
             cpu = new CPUCore(this.bus);
             bus.Subscribe<ExceptionEventArg>(OnError);
         }
 
-        public void AddDevice(IBaseIODevice device)
+        public void AddDevice(IMemoryMappedDevice device)
         {
             connectedDevices.Add(device);
         }
-        public ReadOnlyCollection<IBaseIODevice> GetConnectedDevices()
+        public ReadOnlyCollection<IMemoryMappedDevice> GetConnectedDevices()
         {
-            return new ReadOnlyCollection<IBaseIODevice>(connectedDevices);
+            return new ReadOnlyCollection<IMemoryMappedDevice>(connectedDevices);
         }
 
         public byte ReadMemoryLocation(ushort address)
         {
-            
+
             var arg = new AddressBusEventArgs
             {
                 Address = address,
@@ -90,7 +88,7 @@ namespace W65C02S.Engine
 
         public void SendIRQ()
         {
-            bus.Publish(new InteruptRequestEventArgs { InteruptType = InteruptType.IRQ});
+            bus.Publish(new InteruptRequestEventArgs { InteruptType = InteruptType.IRQ });
         }
 
         public void SendNMI()
@@ -102,7 +100,8 @@ namespace W65C02S.Engine
         {
             mode = RunMode.Run;
 
-            return Task.Factory.StartNew(() => {
+            return Task.Factory.StartNew(() =>
+            {
                 while (mode == RunMode.Run)
                 {
                     if (BreakPoints.Contains(cpu.PC))
@@ -123,7 +122,7 @@ namespace W65C02S.Engine
             cpu.ST = (cpu.ST ^ ProcessorFlags.B);
         }
 
-        public bool IsFlagSet(Bus.ProcessorFlags flag)
+        public bool IsFlagSet(ProcessorFlags flag)
         {
             return ((cpu.ST & flag) == flag);
         }

@@ -14,8 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\W65C02S.Bus\W65C02S.Bus.csproj" />
     <ProjectReference Include="..\W65C02S.CPU\W65C02S.CPU.csproj" />
+    <ProjectReference Include="..\W65C02S.Engine\W65C02S.Engine.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,14 +1,19 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using W65C02S.Bus;
-using W65C02S.Engine;
-using W65C02S.InputOutput.Devices;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using W65C02S.Bus.EventArgs;
 using Newtonsoft.Json;
+using W65C02.API.Enums;
+using W65C02.API.EventArgs;
+using W65C02.API.Interfaces;
+using W65C02S.Engine;
+using W65C02.API;
+using Plugin.Manager;
+using W65C02S.Engine.Factories;
+using W65C02.API.Models;
+using W65C02S.MappingManager;
 
 namespace W65C02S.Console
 {
@@ -30,9 +35,9 @@ namespace W65C02S.Console
         private static bool emulatorStarted = false;
         private static bool showDeviceActivity = false;
 
-        private static Emulator emulator;
-        private static Bus.Bus bus;
-        private static ROM.ROM rom;
+        private static IEmulator emulator;
+        private static IBus bus;
+        private static IROM rom;
         private static MenuCollection mainMenu;
         private static MenuCollection subMenu;
         private static MenuItem selectedMenuItem;
@@ -49,65 +54,64 @@ namespace W65C02S.Console
             System.Console.Title = appTitle;
             System.Console.ForegroundColor = ConsoleColor.Green;
             System.Console.CancelKeyPress += OnCancelKeyPress;
-            using (bus = new Bus.Bus())
+            IBus bus = Factory.CreateBus();
+            
+            emulator = new Emulator(bus, devices);
+            var romDevice = devices.First(x => x.ChipSelect == "ROM");
+            rom = Factory.CreateROM(bus, ushort.Parse(romDevice.StartAddress, System.Globalization.NumberStyles.HexNumber));
+            emulator.AddDevice(rom);
+
+            var ramDevice = devices.First(x => x.ChipSelect == "RAM");
+            var ram = Factory.CreateRAM(bus, ushort.Parse(ramDevice.StartAddress, System.Globalization.NumberStyles.HexNumber));
+            emulator.AddDevice(ram);
+            
+            // load plugin devices
+            var extraDevices = new GenericPluginLoader<IMemoryMappedDevice>().LoadAll(bus);
+            foreach (var device in extraDevices)
             {
-                emulator = new Emulator(bus);
+                emulator.AddDevice(device);
+            }
 
-                //rom = new ROM.ROM("ROM", bus, 0x9000, 0xFFFF, DataBusMode.Read);
-                //emulator.AddDevice(new RAM.RAM("RAM", bus, 0, 0x7FFF, DataBusMode.ReadWrite));
-                //emulator.AddDevice(new W6522_Via("Video Memory", bus, 0x8000, 0x87FF, DataBusMode.ReadWrite));
-                //emulator.AddDevice(new W6522_Via("I/O Device2", bus, 0x8800, 0x8FFF, DataBusMode.ReadWrite));
-                //emulator.AddDevice(rom);
+            // map devices to memory locations
+            var connectedDevices = emulator.GetConnectedDevices();
+            foreach (var device in devices)
+            {
+                var foundDevice = connectedDevices.FirstOrDefault(x => x.MappedIO.ToString() == device.ChipSelect);
+                if (foundDevice == null)
+                    continue;
 
-                foreach (var device in devices)
-                {
-                    var startAddress = ushort.Parse(device.StartAddress, System.Globalization.NumberStyles.HexNumber);
-                    var endAddress = ushort.Parse(device.EndAddress, System.Globalization.NumberStyles.HexNumber);
-                    DataBusMode mode = device.Mode == "ReadWrite"
-                        ? DataBusMode.ReadWrite
-                        : (device.Mode == "ReadOnly") ? DataBusMode.Read : DataBusMode.Write;
-
-                    if (device.DeviceName.ToUpper() == "ROM")
-                    {
-                        rom = new ROM.ROM("ROM", bus, startAddress, endAddress, mode);
-                        emulator.AddDevice(rom);
-                    }
-                    else
-                    {
-                        emulator.AddDevice(new RAM.RAM(device.DeviceName, bus, startAddress, endAddress, mode));
-                    }
-
-                }
+                var startAddress = ushort.Parse(device.StartAddress, System.Globalization.NumberStyles.HexNumber);
+                var endAddress = ushort.Parse(device.EndAddress, System.Globalization.NumberStyles.HexNumber);
+                foundDevice.SetIOAddress(startAddress, endAddress);
+            }
 
 
-                bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
-                bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-                bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-                bus.Subscribe<ExceptionEventArg>(OnError);
+            bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
+            bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+            bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+            bus.Subscribe<ExceptionEventArg>(OnError);
 
-                System.Console.CursorVisible = false;
-                try
-                {
-                    DisplayMainMenu();
-                }
-                catch (Exception ex)
-                {
-                    DisplayError(ex.Message, ExceptionType.Error);
-                    System.Console.ReadKey();
-                }
-                finally
-                {
-                    System.Console.Clear();
+            System.Console.CursorVisible = false;
+            try
+            {
+                DisplayMainMenu();
+            }
+            catch (Exception ex)
+            {
+                DisplayError(ex.Message, ExceptionType.Error);
+                System.Console.ReadKey();
+            }
+            finally
+            {
+                System.Console.Clear();
 
-                    bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
-                    bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-                    bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-                    bus.UnSubscribe<ExceptionEventArg>(OnError);
+                bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+                bus.UnSubscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+                bus.UnSubscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+                bus.UnSubscribe<ExceptionEventArg>(OnError);
 
-                    emulator.Dispose();
-                    bus.Dispose();
-                }
-                
+                emulator.Dispose();
+                bus.Dispose();
             }
 
             if (p != null)
@@ -1035,7 +1039,8 @@ namespace W65C02S.Console
                 deviceMemSize = device.EndAddress - device.StartAddress + 1;
                 var left = (int)(((decimal)device.StartAddress / (decimal)65536) * (decimal)maxColumns);
                 var width = (int)(((decimal)deviceMemSize / 65536) * (decimal)maxColumns);
-
+                if (width == 0)
+                    width = 1;
                 System.Console.CursorTop = subMenu.NumberOfLines + 8;
 
                 for (int x = 0; x < 4; x++)

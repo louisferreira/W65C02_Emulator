@@ -5,13 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\W65C02S.Bus\W65C02S.Bus.csproj" />
+    <ProjectReference Include="..\W65C02.API\W65C02.API.csproj" />
     <ProjectReference Include="..\W65C02S.CPU\W65C02S.CPU.csproj" />
-    <ProjectReference Include="..\W65C02S.MemoryMappedDevice\W65C02S.MemoryMappedDevice.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Models\" />
+    <ProjectReference Include="..\W65C02S.MappingManager\W65C02S.MappingManager.csproj" />
   </ItemGroup>
 
 </Project>

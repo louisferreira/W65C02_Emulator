@@ -1,6 +1,6 @@
 ﻿using System;
-using W65C02S.Bus;
-using W65C02S.Bus.EventArgs;
+using W65C02.API.Enums;
+using W65C02.API.EventArgs;
 
 namespace W65C02S.CPU
 {
@@ -82,7 +82,18 @@ namespace W65C02S.CPU
         // "AND" memory with accumulator
         private void AND()
         {
-            A = ((byte)(A & fetchedByte.Value));
+            byte operand = 0x00;
+            if (operandAddress.HasValue)
+            {
+                ReadValueFromAddress(operandAddress.Value);
+                operand = fetchedByte.Value;
+            }
+            else if (fetchedByte.HasValue)
+            {
+                operand = fetchedByte.Value;
+            }
+
+            A = ((byte)(A & operand));
 
             SetFlag(ProcessorFlags.Z, A == 0x00);
             SetFlag(ProcessorFlags.N, (A & 0x80) == 0x80);
@@ -114,35 +125,35 @@ namespace W65C02S.CPU
         // Branch on Bit Reset
         private void BBR()
         {
-            // fetchedByte contains operand1 (byte to test)
+            // fetchedByte contains operand1 (ZP address byte to test)
             // operandAddress contains operand2 (zp address to branch to)
 
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
             {
-                case 0x0F:
-                    mask = 1 << 0;
+                case 0x0F: // bit 0
+                    mask = 0xFE;
                     break;
-                case 0x1F:
-                    mask = 1 << 1;
+                case 0x1F: // bit 1
+                    mask = 0xFD;
                     break;
-                case 0x2F:
-                    mask = 1 << 2;
+                case 0x2F: // bit 2
+                    mask = 0xFB;
                     break;
-                case 0x3F:
-                    mask = 1 << 3;
+                case 0x3F: // bit 3
+                    mask = 0xF7;
                     break;
-                case 0x4F:
-                    mask = 1 << 4;
+                case 0x4F: // bit 4
+                    mask = 0xEF;
                     break;
-                case 0x5F:
-                    mask = 1 << 5;
+                case 0x5F: // bit 5
+                    mask = 0xDF;
                     break;
-                case 0x6F:
-                    mask = 1 << 6;
+                case 0x6F: // bit 6
+                    mask = 0xBF;
                     break;
-                case 0x7F:
-                    mask = 1 << 7;
+                case 0x7F: // bit 7
+                    mask = 0x7F;
                     break;
                 default:
                     break;
@@ -150,9 +161,9 @@ namespace W65C02S.CPU
             ReadValueFromAddress(fetchedByte.Value);
             var zpVal = fetchedByte.Value;
 
-            if ((zpVal & mask) == 0)
+            if ((zpVal & mask) == zpVal)
             {
-                var amount = (sbyte)(currentInstruction.Operand2 ?? 0x00);
+                var amount = (sbyte)(operandAddress.Value);
                 PC = (ushort)(PC + amount + currentInstruction.Length);
             }
             else
@@ -164,6 +175,8 @@ namespace W65C02S.CPU
         // Branch on Bit Set
         private void BBS()
         {
+            // fetchedByte contains operand1 (byte to test)
+            // operandAddress contains operand2 (zp address to branch to)
             byte mask = 0x00;
             switch (currentInstruction.OpCode)
             {
@@ -198,7 +211,7 @@ namespace W65C02S.CPU
             var zpVal = fetchedByte.Value;
             if ((zpVal & mask) == mask)
             {
-                var amount = (sbyte)(currentInstruction.Operand2 ?? 0x00);
+                var amount = (sbyte)(operandAddress.Value);
                 PC = (ushort)(PC + amount + currentInstruction.Length);
             }
             else

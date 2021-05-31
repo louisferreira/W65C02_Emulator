@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
-using W65C02S.Bus.EventArgs;
+using W65C02.API.Enums;
+using W65C02.API.EventArgs;
 using Xunit;
 
 namespace W65C02S.CPU.Tests
@@ -38,13 +39,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) == 0, "Expected C flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) == 0, "Expected C flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
 
         [Fact]
@@ -54,7 +55,7 @@ namespace W65C02S.CPU.Tests
             instr.Operand1 = 0x20;
 
             target.A = 0x20;
-            target.ST = Bus.ProcessorFlags.C;
+            target.ST = ProcessorFlags.C;
 
             target.Execute(instr);
 
@@ -62,13 +63,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) == 0, "Expected C flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) == 0, "Expected C flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
 
         [Fact]
@@ -86,13 +87,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) >  0, "Expected Z flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.Z) >  0, "Expected Z flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
 
         [Fact]
@@ -120,13 +121,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) > 0, "Expected N flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) > 0, "Expected N flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
 
         [Fact]
@@ -146,7 +147,7 @@ namespace W65C02S.CPU.Tests
             instr.Operand1 = 0xEC; // -20
 
             target.A = 0xEC; // -20
-            target.ST = Bus.ProcessorFlags.C;
+            target.ST = ProcessorFlags.C;
 
             target.Execute(instr);
 
@@ -154,13 +155,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) > 0, "Expected N flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) > 0, "Expected C flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) > 0, "Expected N flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) > 0, "Expected C flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.V) == 0, "Expected V flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
 
         [Fact]
@@ -178,13 +179,13 @@ namespace W65C02S.CPU.Tests
             Assert.True(target.X == 0, "X Register expected to be 0, but was not.");
             Assert.True(target.Y == 0, "Y Register expected to be 0, but was not.");
 
-            Assert.True((target.ST & Bus.ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
-            Assert.True((target.ST & Bus.ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.V) >  0, "Expected V flag to be set, but was reset.");
-            Assert.True((target.ST & Bus.ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.N) == 0, "Expected N flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.Z) == 0, "Expected Z flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.B) == 0, "Expected B flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.I) == 0, "Expected I flag to be reset, but was set.");
+            Assert.True((target.ST & ProcessorFlags.C) >  0, "Expected C flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.V) >  0, "Expected V flag to be set, but was reset.");
+            Assert.True((target.ST & ProcessorFlags.D) == 0, "Expected D flag to be reset, but was set.");
         }
     }
 }

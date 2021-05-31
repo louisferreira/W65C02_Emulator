@@ -1,27 +1,102 @@
 /*
   This file contains the mapping configuration. 
-  You can set up your own memory mapped locations here and specify ReadOnly, WriteOnly or ReadWrite modes. 
-  Notes:
-  Address values are hex 
-  Ensure that there is a device called 'ROM' added (the system looks for this by name)
+  You can set up your own memory mapped locations here. 
+  ChipSelect specifies the name of the device that will be enabled within the specified address range.
+  Notes:  Address values are hex 
+  Default values are:
+    RAM: $0000 - $7FFF
+    I/O: $8000 - $8FFF (16 blocks of 256 addresses each)
+    ROM: $9000 - $FFFF
  */
 [
   {
-    "DeviceName": "RAM",
+    "ChipSelect": "RAM",
     "StartAddress": "0000",
-    "EndAddress": "7FFF",
-    "Mode": "ReadWrite"
+    "EndAddress": "7FFF"
   },
   {
-    "DeviceName": "I/O Device",
-    "StartAddress": "8800",
-    "EndAddress": "8FFF",
-    "Mode": "WriteOnly"
-  },
-  {
-    "DeviceName": "ROM",
+    "ChipSelect": "ROM",
     "StartAddress": "9000",
-    "EndAddress": "FFFF",
-    "Mode": "ReadOnly"
+    "EndAddress": "FFFF"
+  },
+  {
+    "ChipSelect": "IO0",
+    "StartAddress": "8000",
+    "EndAddress": "80FF"
+  },
+  {
+    "ChipSelect": "IO1",
+    "StartAddress": "8100",
+    "EndAddress": "81FF"
+  },
+  {
+    "ChipSelect": "IO2",
+    "StartAddress": "8200",
+    "EndAddress": "82FF"
+  },
+  {
+    "ChipSelect": "IO3",
+    "StartAddress": "8300",
+    "EndAddress": "83FF"
+  },
+  {
+    "ChipSelect": "IO4",
+    "StartAddress": "8400",
+    "EndAddress": "84FF"
+  },
+  {
+    "ChipSelect": "IO5",
+    "StartAddress": "8500",
+    "EndAddress": "85FF"
+  },
+  {
+    "ChipSelect": "IO6",
+    "StartAddress": "8600",
+    "EndAddress": "86FF"
+  },
+  {
+    "ChipSelect": "IO7",
+    "StartAddress": "8700",
+    "EndAddress": "87FF"
+  },
+  {
+    "ChipSelect": "IO8",
+    "StartAddress": "8800",
+    "EndAddress": "88FF"
+  },
+  {
+    "ChipSelect": "IO9",
+    "StartAddress": "8900",
+    "EndAddress": "89FF"
+  },
+  {
+    "ChipSelect": "IOA",
+    "StartAddress": "8A00",
+    "EndAddress": "8AFF"
+  },
+  {
+    "ChipSelect": "IOB",
+    "StartAddress": "8B00",
+    "EndAddress": "8BFF"
+  },
+  {
+    "ChipSelect": "IOC",
+    "StartAddress": "8C00",
+    "EndAddress": "8CFF"
+  },
+  {
+    "ChipSelect": "IOD",
+    "StartAddress": "8D00",
+    "EndAddress": "8DFF"
+  },
+  {
+    "ChipSelect": "IOE",
+    "StartAddress": "8E00",
+    "EndAddress": "8EFF"
+  },
+  {
+    "ChipSelect": "IOF",
+    "StartAddress": "8F00",
+    "EndAddress": "8FFF"
   }
 ]

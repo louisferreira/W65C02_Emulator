@@ -10,10 +10,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Plugin.Manager\Plugin.Manager.csproj" />
+    <ProjectReference Include="..\W65C02.API\W65C02.API.csproj" />
     <ProjectReference Include="..\W65C02S.Engine\W65C02S.Engine.csproj" />
-    <ProjectReference Include="..\W65C02S.InputOutput.Devices\W65C02S.InputOutput.Devices.csproj" />
-    <ProjectReference Include="..\W65C02S.RAM\W65C02S.RAM.csproj" />
-    <ProjectReference Include="..\W65C02S.ROM\W65C02S.ROM.csproj" />
   </ItemGroup>
 
   <ItemGroup>
