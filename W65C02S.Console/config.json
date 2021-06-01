@@ -1,7 +1,7 @@
 /*
   This file contains the mapping configuration. 
   You can set up your own memory mapped locations here. 
-  ChipSelect specifies the name of the device that will be enabled within the specified address range.
+  ChipSelect specifies the name of the port that will be enabled within the specified address range.
   Notes:  Address values are hex 
   Default values are:
     RAM: $0000 - $7FFF

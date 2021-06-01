@@ -20,24 +20,26 @@ namespace W65C02S.Plugin.VIA
             this.Mode = DataBusMode.ReadWrite;
             this.MappedIO = IOMapping.IO4;
             memory = new byte[16];
-
+            Enabled = false;
             this.bus = bus;
-            this.bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
+            if(Enabled)
+                this.bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
 
         }
 
         public string DeviceName { get; }
         public ushort StartAddress { get; private set; }
         public ushort EndAddress { get; private set; }
+        public bool Enabled { get; private set; }
         public IOMapping MappedIO { get; private set; }
 
-        
+
 
         public DataBusMode Mode { get; private set; }
 
         public void OnAddressChanged(AddressBusEventArgs arg)
         {
-            if (arg.AddressDecoder.IsMappedTo(this.MappedIO))
+            if (Enabled && arg.AddressDecoder.IsMappedTo(this.MappedIO))
             {
                 if (arg.Mode == DataBusMode.Read && (Mode == DataBusMode.Read || Mode == DataBusMode.ReadWrite))
                 {
@@ -61,7 +63,8 @@ namespace W65C02S.Plugin.VIA
 
         public void Dispose()
         {
-            this.bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+            if(Enabled)
+                this.bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
         }
 
 

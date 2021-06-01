@@ -8,6 +8,7 @@ namespace W65C02.API.Interfaces
         string DeviceName { get; }
         ushort StartAddress { get; }
         ushort EndAddress { get; }
+        bool Enabled { get; }
         IOMapping MappedIO { get; }
         DataBusMode Mode { get; }
         void SetIOAddress(ushort startAddress, ushort endAddress);

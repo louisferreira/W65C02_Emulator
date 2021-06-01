@@ -35,12 +35,12 @@ namespace W65C02S.Engine
 
 
 
-        public Emulator(IBus bus, List<W65C02.API.Models.MapConfig> devices)
+        public Emulator(IBus bus, List<W65C02.API.Models.MapConfig> mappings)
         {
             BreakPoints = new List<ushort>();
             connectedDevices = new List<IMemoryMappedDevice>();
             this.bus = bus;
-            addressDecoder = new AddressDecoder(bus, devices);
+            addressDecoder = new AddressDecoder(bus, mappings);
 
             cpu = new CPUCore(this.bus);
             bus.Subscribe<ExceptionEventArg>(OnError);

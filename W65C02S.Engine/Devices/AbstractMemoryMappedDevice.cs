@@ -13,6 +13,8 @@ namespace W65C02S.Engine.Devices
         public string DeviceName { get; set; }
         public ushort StartAddress { get; protected set; }
         public ushort EndAddress { get; protected set; }
+        public bool Enabled { get; protected set; }
+
         public IOMapping MappedIO { get; protected set; }
         public DataBusMode Mode { get; protected set; }
 
@@ -27,7 +29,8 @@ namespace W65C02S.Engine.Devices
 
         public void Dispose()
         {
-            bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
+            if(Enabled)
+                bus.UnSubscribe<AddressBusEventArgs>(OnAddressChanged);
         }
 
         public abstract void SetIOAddress(ushort startAddress, ushort endAddress);

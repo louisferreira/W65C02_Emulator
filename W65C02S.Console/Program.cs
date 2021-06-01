@@ -47,7 +47,7 @@ namespace W65C02S.Console
             semaphore = new SemaphoreSlim(1, 1);
             lastInstructions = new Queue<ushort>();
             SetupMenuStructure();
-            var devices = LoadConfig();
+            var mappings = LoadConfig();
 
             System.Console.SetWindowSize(maxColumns, maxRows);
             System.Console.SetBufferSize(maxColumns, maxRows);
@@ -56,44 +56,49 @@ namespace W65C02S.Console
             System.Console.CancelKeyPress += OnCancelKeyPress;
             IBus bus = Factory.CreateBus();
             
-            emulator = new Emulator(bus, devices);
-            var romDevice = devices.First(x => x.ChipSelect == "ROM");
-            rom = Factory.CreateROM(bus, ushort.Parse(romDevice.StartAddress, System.Globalization.NumberStyles.HexNumber));
-            emulator.AddDevice(rom);
-
-            var ramDevice = devices.First(x => x.ChipSelect == "RAM");
-            var ram = Factory.CreateRAM(bus, ushort.Parse(ramDevice.StartAddress, System.Globalization.NumberStyles.HexNumber));
-            emulator.AddDevice(ram);
-            
-            // load plugin devices
-            var extraDevices = new GenericPluginLoader<IMemoryMappedDevice>().LoadAll(bus);
-            foreach (var device in extraDevices)
-            {
-                emulator.AddDevice(device);
-            }
-
-            // map devices to memory locations
-            var connectedDevices = emulator.GetConnectedDevices();
-            foreach (var device in devices)
-            {
-                var foundDevice = connectedDevices.FirstOrDefault(x => x.MappedIO.ToString() == device.ChipSelect);
-                if (foundDevice == null)
-                    continue;
-
-                var startAddress = ushort.Parse(device.StartAddress, System.Globalization.NumberStyles.HexNumber);
-                var endAddress = ushort.Parse(device.EndAddress, System.Globalization.NumberStyles.HexNumber);
-                foundDevice.SetIOAddress(startAddress, endAddress);
-            }
-
-
-            bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
-            bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
-            bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
-            bus.Subscribe<ExceptionEventArg>(OnError);
+            emulator = new Emulator(bus, mappings);
+                      
 
             System.Console.CursorVisible = false;
             try
             {
+                // load plugin devices
+                var extraDevices = new GenericPluginLoader<IMemoryMappedDevice>().LoadAll(bus);
+                foreach (var device in extraDevices)
+                {
+                    //check if device name is listed in config, and add it if found
+                    if(device.Enabled)
+                    {
+                        if (device is IROM)
+                            rom = (IROM)device;
+                        
+                        emulator.AddDevice(device);
+                    }
+                }
+
+                var connectedDevices = emulator.GetConnectedDevices();
+                if (connectedDevices == null || connectedDevices.Count == 0)
+                    throw new InvalidOperationException("There are no devices connected to the system. Please add at least one plugin to the plugins folder.");
+                if(rom == null)
+                    throw new InvalidOperationException("There is no ROM connected to the system. Please add at least one plugin that implements IROM interface to the plugins folder.");
+
+                // map devices to memory locations
+                foreach (var plugin in connectedDevices)
+                {
+                    var mapping = mappings.FirstOrDefault(x => x.ChipSelect == plugin.MappedIO.ToString());
+                    if (mapping == null)
+                        continue;
+
+                    var startAddress = ushort.Parse(mapping.StartAddress, System.Globalization.NumberStyles.HexNumber);
+                    var endAddress = ushort.Parse(mapping.EndAddress, System.Globalization.NumberStyles.HexNumber);
+                    plugin.SetIOAddress(startAddress, endAddress);
+                }
+
+                bus.Subscribe<AddressBusEventArgs>(OnAddressChanged);
+                bus.Subscribe<OnInstructionExecutingEventArg>(OnInstructionExecuting);
+                bus.Subscribe<OnInstructionExecutedEventArg>(OnInstructionExecuted);
+                bus.Subscribe<ExceptionEventArg>(OnError);
+
                 DisplayMainMenu();
             }
             catch (Exception ex)
