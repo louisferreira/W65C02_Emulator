@@ -66,10 +66,16 @@ namespace W65C02S.CPU
             semaphore = new SemaphoreSlim(1, 1);
             this.bus = bus;
             bus?.Subscribe<InteruptRequestEventArgs>(OnInteruptRequest);
+            bus?.Subscribe<ResetEventArgs>(OnReset);
+
             Initialise();
             SetupInstructionTable();
         }
 
+        private void OnReset(ResetEventArgs obj)
+        {
+            Reset();
+        }
 
         private void Initialise()
         {
@@ -129,6 +135,7 @@ namespace W65C02S.CPU
                 }
 
                 interuptRequested = false;
+                semaphore.Release();
                 return;
             }
 
@@ -326,11 +333,8 @@ namespace W65C02S.CPU
         {
             if (arg.InteruptType == InteruptType.IRQ)
             {
-                if (!IsFlagSet(ProcessorFlags.I))
-                {
-                    interuptRequested = true;
-                    interuptMasked = false;
-                }
+                interuptRequested = true;
+                interuptMasked = false;
             }
             if (arg.InteruptType == InteruptType.NMI)
             {
@@ -341,54 +345,54 @@ namespace W65C02S.CPU
 
         private void HandleIRQ()
         {
-            if (!IsFlagSet(ProcessorFlags.I))
+
+            // save the Processor Flags to stack
+            WriteValueToAddress(SP, (byte)ST);
+            DecreaseSP();
+
+            // save return address to stack, hi byte first then lo byte
+            var retAddr = (PC); // + currentInstruction.Length
+            WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
+            DecreaseSP();
+
+            WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
+            DecreaseSP();
+
+            //hardware interrupts IRQ & NMI will push the B flag as being 0.
+            SetFlag(ProcessorFlags.B, false);
+
+
+            // disable further interupts
+            SetFlag(ProcessorFlags.I, true);
+
+            // set the PC to the IRQ vector
+            PC = IRQ_Vect;
+            ReadValueFromAddress(PC);
+            var lo = fetchedByte;
+            clockTicks++;
+
+            PC++;
+            ReadValueFromAddress(PC);
+            var hi = fetchedByte;
+            clockTicks++;
+
+            PC = (ushort)((hi << 8) | lo);
+
+            var arg = new OnInstructionExecutedEventArg
             {
-                // save return address to stack, hi byte first then lo byte
-                var retAddr = (PC + currentInstruction.Length);
-                WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
-                DecreaseSP();
+                CurrentInstruction = currentInstruction,
+                DecodedInstruction = "IRQ Request",
+                A = A,
+                X = X,
+                Y = Y,
+                PC = PC,
+                SP = SP,
+                ST = ST,
+                RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
+                ClockTicks = clockTicks
+            };
+            bus?.Publish(arg);
 
-                WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
-                DecreaseSP();
-
-                //hardware interrupts IRQ & NMI will push the B flag as being 0.
-                SetFlag(ProcessorFlags.B, false);
-
-                // save the Processor Flags to stack
-                WriteValueToAddress(SP, (byte)ST);
-                DecreaseSP();
-
-                // disable further interupts
-                SetFlag(ProcessorFlags.I, true);
-
-                // set the PC to the IRQ vector
-                PC = IRQ_Vect;
-                ReadValueFromAddress(PC);
-                var lo = fetchedByte;
-                clockTicks++;
-
-                PC++;
-                ReadValueFromAddress(PC);
-                var hi = fetchedByte;
-                clockTicks++;
-
-                PC = (ushort)((hi << 8) | lo);
-
-                var arg = new OnInstructionExecutedEventArg
-                {
-                    CurrentInstruction = currentInstruction,
-                    DecodedInstruction = "IRQ Request",
-                    A = A,
-                    X = X,
-                    Y = Y,
-                    PC = PC,
-                    SP = SP,
-                    ST = ST,
-                    RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
-                    ClockTicks = clockTicks
-                };
-                bus?.Publish(arg);
-            }
         }
 
         private void HandleNMI()
@@ -443,6 +447,7 @@ namespace W65C02S.CPU
         public void Dispose()
         {
             bus?.UnSubscribe<InteruptRequestEventArgs>(OnInteruptRequest);
+            bus?.UnSubscribe<ResetEventArgs>(OnReset);
         }
     }
 }

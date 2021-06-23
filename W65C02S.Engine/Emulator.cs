@@ -10,11 +10,12 @@ using W65C02.API.EventArgs;
 using W65C02.API.Interfaces;
 using W65C02S.MappingManager;
 
+
 namespace W65C02S.Engine
 {
     public class Emulator : IDisposable, IEmulator
     {
-
+        private object locker = new object();
         private RunMode mode = RunMode.Debug;
         private readonly IBus bus;
         private AddressDecoder addressDecoder;
@@ -44,7 +45,9 @@ namespace W65C02S.Engine
 
             cpu = new CPUCore(this.bus);
             bus.Subscribe<ExceptionEventArg>(OnError);
+
         }
+
 
         public void AddDevice(IMemoryMappedDevice device)
         {
@@ -79,7 +82,12 @@ namespace W65C02S.Engine
 
         public Task Reset()
         {
-            return Task.Factory.StartNew(() => cpu.Reset());
+            return Task.Factory.StartNew(() =>
+            {
+                //cpu.Reset();
+                var resetEvnt = new ResetEventArgs() { ResetType = ResetType.Hardware };
+                bus.Publish(resetEvnt);
+            });
         }
         public Task Step()
         {
@@ -132,11 +140,6 @@ namespace W65C02S.Engine
             mode = RunMode.Debug;
         }
 
-        public void Dispose()
-        {
-            bus.UnSubscribe<ExceptionEventArg>(OnError);
-        }
-
         public void LoadROM(byte[] data, bool offset)
         {
             var arg = new FlashROMArgs
@@ -162,6 +165,11 @@ namespace W65C02S.Engine
         public void SetPCValue(ushort inputValue)
         {
             cpu.PC = inputValue;
+        }
+
+        public void Dispose()
+        {
+            bus.UnSubscribe<ExceptionEventArg>(OnError);
         }
     }
 }

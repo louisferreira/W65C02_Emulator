@@ -87,4 +87,10 @@ namespace W65C02.API.Enums
                 RAM = 99,
                 ROM = 100
     }
+
+    public enum ResetType
+    {
+        Hardware = 0,
+        Software = 1
+    }
 }

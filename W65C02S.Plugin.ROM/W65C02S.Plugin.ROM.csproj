@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy  &quot;$(TargetPath)&quot; &quot;$(SolutionDir)W65C02S.Console\bin\Debug\netcoreapp3.1\Plugins\&quot; /y" />
+    <Exec Command="xcopy  &quot;$(TargetPath)&quot; &quot;$(SolutionDir)W65C02S.Console\bin\Debug\netcoreapp3.1\Plugins\&quot; /y&#xD;&#xA;xcopy  &quot;$(TargetPath)&quot; &quot;$(SolutionDir)W65C02.IDE\bin\Debug\net5.0-windows\Plugins\&quot; /y" />
   </Target>
 
 </Project>

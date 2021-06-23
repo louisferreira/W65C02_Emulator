@@ -274,7 +274,12 @@ namespace W65C02S.CPU
             }
 
             byte M = fetchedByte.Value;
-            SetFlag(ProcessorFlags.Z, ((A ^ M) == M));
+            //bits 7 and 6 of operand are transfered to bit 7 and 6 of SR (N,V)
+            SetFlag(ProcessorFlags.N, ((A & M) == 0x80));
+            SetFlag(ProcessorFlags.V, ((A & M) == 0x40));
+
+            //the zero-flag is set to the result of operand AND accumulator.
+            SetFlag(ProcessorFlags.Z, (A & M) == 0);
             IncrementPC(currentInstruction.Length);
         }
 
@@ -357,6 +362,9 @@ namespace W65C02S.CPU
 
                 // disable further interupts
                 SetFlag(ProcessorFlags.I, true);
+
+                // CMOS version also clears the decimal flag
+                SetFlag(ProcessorFlags.D, false);
 
                 // set the PC to the IRQ vector
                 PC = IRQ_Vect;
@@ -952,7 +960,7 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
 
             // re-enable interupts
-            SetFlag(ProcessorFlags.I, false);
+            //SetFlag(ProcessorFlags.I, false);
             // clear the break flag
             SetFlag(ProcessorFlags.B, false);
 
