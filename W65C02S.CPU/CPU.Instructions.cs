@@ -960,7 +960,7 @@ namespace W65C02S.CPU
             var hi = fetchedByte.Value;
 
             // re-enable interupts
-            //SetFlag(ProcessorFlags.I, false);
+            SetFlag(ProcessorFlags.I, false);
             // clear the break flag
             SetFlag(ProcessorFlags.B, false);
 

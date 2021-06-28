@@ -21,6 +21,7 @@ namespace W65C02S.CPU
         private bool stopCmdAsserted = false;
         private bool interuptRequested = false;
         private bool interuptMasked = false;
+        private Queue<InteruptRequestEventArgs> irqQueue;
 
         private const ushort IRQ_Vect = 0x0FFFE;
         private const ushort Rest_Vect = 0x0FFFC;
@@ -65,6 +66,8 @@ namespace W65C02S.CPU
         {
             semaphore = new SemaphoreSlim(1, 1);
             this.bus = bus;
+            irqQueue = new Queue<InteruptRequestEventArgs>();
+
             bus?.Subscribe<InteruptRequestEventArgs>(OnInteruptRequest);
             bus?.Subscribe<ResetEventArgs>(OnReset);
 
@@ -84,7 +87,7 @@ namespace W65C02S.CPU
             X = 0;
             Y = 0;
             SP = 0x0000;
-            ST = ProcessorFlags.U;
+            ST = ProcessorFlags.U | ProcessorFlags.B | ProcessorFlags.I;
         }
 
         public void Reset()
@@ -108,6 +111,7 @@ namespace W65C02S.CPU
             PC = (ushort)((hi << 8) | lo);
             stopCmdAsserted = false;
         }
+        
         public void Step()
         {
             if (stopCmdAsserted)
@@ -115,30 +119,21 @@ namespace W65C02S.CPU
                 stopCmdAsserted = true;
                 var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor has STOPed . A Reset is required." };
                 bus?.Publish(e);
-                return;
             }
-
-            Execute();
+            else
+            {
+                if (irqQueue.Count > 0)
+                {
+                    HandleInterupt();
+                }
+                Execute();
+            }
         }
+        
         private void Execute()
         {
+
             semaphore.Wait();
-            if (interuptRequested)
-            {
-                if (interuptMasked)
-                {
-                    HandleNMI();
-                }
-                else
-                {
-                    HandleIRQ();
-                }
-
-                interuptRequested = false;
-                semaphore.Release();
-                return;
-            }
-
             ReadValueFromAddress(PC);
 
             if (instructionTable.Any(x => x.OpCode == fetchedByte.Value))
@@ -192,6 +187,7 @@ namespace W65C02S.CPU
             }
             semaphore.Release();
         }
+        
         public void Execute(Instruction newInstruction)
         {
             if (currentInstruction == null)
@@ -331,38 +327,53 @@ namespace W65C02S.CPU
 
         private void OnInteruptRequest(InteruptRequestEventArgs arg)
         {
-            if (arg.InteruptType == InteruptType.IRQ)
+            irqQueue.Enqueue(arg);
+        }
+
+        private void HandleInterupt()
+        {
+            try
             {
-                interuptRequested = true;
-                interuptMasked = false;
+                var intrupt = irqQueue.Peek();
+                
+                if (intrupt.InteruptType == InteruptType.IRQ)
+                {
+                    if (!IsFlagSet(ProcessorFlags.I)) // only process IRQ interupts if the irq flag is clear (0)
+                    {
+                        intrupt = irqQueue.Dequeue();
+                        HandleIRQ();
+                    }
+                }
+                if (intrupt.InteruptType == InteruptType.NMI)
+                {
+                    intrupt = irqQueue.Dequeue();
+                    HandleNMI();
+                }
             }
-            if (arg.InteruptType == InteruptType.NMI)
+            catch (Exception ex)
             {
-                interuptRequested = true;
-                interuptMasked = true;
+                var e = new ExceptionEventArg() { ErrorMessage = $"IRQ Handler Error: {ex.Message}".PadRight(100, ' '), ExceptionType = ExceptionType.Error };
+                bus?.Publish(e);
             }
         }
 
         private void HandleIRQ()
         {
-
+            //hardware interrupts IRQ & NMI will push the B flag as being 0.
+            SetFlag(ProcessorFlags.B, false);
             // save the Processor Flags to stack
             WriteValueToAddress(SP, (byte)ST);
             DecreaseSP();
+
 
             // save return address to stack, hi byte first then lo byte
             var retAddr = (PC); // + currentInstruction.Length
             WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
             DecreaseSP();
-
             WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
             DecreaseSP();
 
-            //hardware interrupts IRQ & NMI will push the B flag as being 0.
-            SetFlag(ProcessorFlags.B, false);
-
-
-            // disable further interupts
+            // set the interupt disable flag
             SetFlag(ProcessorFlags.I, true);
 
             // set the PC to the IRQ vector
@@ -381,7 +392,7 @@ namespace W65C02S.CPU
             var arg = new OnInstructionExecutedEventArg
             {
                 CurrentInstruction = currentInstruction,
-                DecodedInstruction = "IRQ Request",
+                DecodedInstruction = "IRQ Request Initiated...",
                 A = A,
                 X = X,
                 Y = Y,
@@ -397,22 +408,21 @@ namespace W65C02S.CPU
 
         private void HandleNMI()
         {
-            // save return address to stack, hi byte first then lo byte
-            var retAddr = (PC + currentInstruction.Length);
-            WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
-            DecreaseSP();
-
-            WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
-            DecreaseSP();
-
             //hardware interrupts IRQ & NMI will push the B flag as being 0.
             SetFlag(ProcessorFlags.B, false);
-
             // save the Processor Flags to stack
             WriteValueToAddress(SP, (byte)ST);
             DecreaseSP();
 
-            // disable further interupts
+
+            // save return address to stack, hi byte first then lo byte
+            var retAddr = (PC); // + currentInstruction.Length
+            WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
+            DecreaseSP();
+            WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
+            DecreaseSP();
+
+            // set the interupt disable flag
             SetFlag(ProcessorFlags.I, true);
 
             // set the PC to the IRQ vector
@@ -431,7 +441,7 @@ namespace W65C02S.CPU
             var arg = new OnInstructionExecutedEventArg
             {
                 CurrentInstruction = currentInstruction,
-                DecodedInstruction = "NMI Request",
+                DecodedInstruction = "NMI Request Initiated...",
                 A = A,
                 X = X,
                 Y = Y,

@@ -66,7 +66,7 @@ namespace W65C02S.Plugin.ACIA
 
         private void GenerateRandomReceiveData()
         {
-            // simulate data recived ramdomly into the Rx buffer and raise IRQ
+            // simulate data recived into the Rx buffer and raise IRQ
             Task.Run(() =>
             {
                 var testdata = "Hello world from ACIA!";
@@ -81,7 +81,7 @@ namespace W65C02S.Plugin.ACIA
                     // wait while IRQ and RDRF set
                     while ((memory[STATUS] & 0x80) == 0x80 || (memory[STATUS] & 0x08) == 0x08)
                     {
-                        Thread.Sleep(1000);
+                        Thread.Sleep(100);
                     }
 
                 }

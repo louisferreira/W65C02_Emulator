@@ -635,9 +635,9 @@ namespace W65C02S.Console
 
                 showDeviceActivity = selected.MenuAction == StepNextInstruction;
 
-                semaphore.Wait();
+                //semaphore.Wait();
                 selected.MenuAction(left, topOffset + subMenu.NumberOfLines + 4);
-                semaphore.Release();
+                //semaphore.Release();
 
                 if (selected.ChildMenuItems != null)
                     subMenu = selected.ChildMenuItems;
@@ -917,6 +917,10 @@ namespace W65C02S.Console
         {
             semaphore.Wait();
             DisplayRegisters(e.A, e.X, e.Y, (byte)e.ST, e.SP, e.PC, e.ClockTicks);
+            if (e.DecodedInstruction.StartsWith("IRQ") || e.DecodedInstruction.StartsWith("NMI"))
+            {
+                ShowLastInstruction(e.DecodedInstruction, "interupt", e.PC);
+            }
             semaphore.Release();
         }
 
