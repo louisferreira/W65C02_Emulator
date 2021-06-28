@@ -679,6 +679,11 @@ namespace W65C02S.Console
             emulator.SendIRQ();
         }
 
+        private static void ClearIRQ(int left = 0, int topOffset = 0)
+        {
+            emulator.ClearInteruptFlag();
+        }
+
         private static void RunEmulator(int left = 0, int topOffset = 02)
         {
             showDeviceActivity = false;
@@ -1246,7 +1251,7 @@ namespace W65C02S.Console
                         { new MenuItem { Index = 3, Text = "Edit Memory Location", ShortcutKey = ConsoleKey.F3, MenuAction = Monitor_EditLocation} },
                         { new MenuItem { Index = 4, Text = "Run (Ctrl+Break to break into Debug)", ShortcutKey = ConsoleKey.F5, MenuAction = RunEmulator } },
                         { new MenuItem { Index = 5, Text = "Send IRQ Signal", ShortcutKey = ConsoleKey.F6, MenuAction = SendIRQSignal} },
-                        { new MenuItem { Index = 6, Text = "Send NMI Signal", ShortcutKey = ConsoleKey.F7, MenuAction = SendNMISignal} },
+                        { new MenuItem { Index = 6, Text = "Clear IRQ", ShortcutKey = ConsoleKey.F7, MenuAction = ClearIRQ} },
                         { new MenuItem { Index = 7, Text = "Set Program Counter Value", ShortcutKey = ConsoleKey.F8, MenuAction = EditPCValue} },
                         { new MenuItem { Index = 8, Text = "Add/Remove Breakpoint", ShortcutKey = ConsoleKey.F9, MenuAction = DisplayBreakPoints} },
                         { new MenuItem { Index = 9, Text = "Step next Instruction", ShortcutKey = ConsoleKey.F10, MenuAction = StepNextInstruction} },

@@ -130,6 +130,11 @@ namespace W65C02S.Engine
             cpu.ST = (cpu.ST ^ ProcessorFlags.B);
         }
 
+        public void ClearInteruptFlag()
+        {
+            cpu.ST = (cpu.ST ^ ProcessorFlags.I);
+        }
+
         public bool IsFlagSet(ProcessorFlags flag)
         {
             return ((cpu.ST & flag) == flag);

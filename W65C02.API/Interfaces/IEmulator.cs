@@ -12,6 +12,7 @@ namespace W65C02.API.Interfaces
         void AddDevice(IMemoryMappedDevice device);
         void AddRemoveBreakPoint(ushort breakPoint);
         void ClearBreakFlag();
+        void ClearInteruptFlag();
         void Dispose();
         List<ushort> GetBreakPoints();
         ReadOnlyCollection<IMemoryMappedDevice> GetConnectedDevices();
