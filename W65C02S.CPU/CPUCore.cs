@@ -19,8 +19,7 @@ namespace W65C02S.CPU
         private List<Instruction> instructionTable;
         private Instruction currentInstruction;
         private bool stopCmdAsserted = false;
-        private bool interuptRequested = false;
-        private bool interuptMasked = false;
+        private bool waiAsserted = false;
         private Queue<InteruptRequestEventArgs> irqQueue;
 
         private const ushort IRQ_Vect = 0x0FFFE;
@@ -94,7 +93,7 @@ namespace W65C02S.CPU
         {
             Initialise();
 
-            // initialise stack
+            // initialise stack pointer
             SP = 0x01FF;
 
             clockTicks = 5;
@@ -110,24 +109,30 @@ namespace W65C02S.CPU
 
             PC = (ushort)((hi << 8) | lo);
             stopCmdAsserted = false;
+            waiAsserted = false;
         }
         
         public void Step()
         {
             if (stopCmdAsserted)
             {
-                stopCmdAsserted = true;
-                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor has STOPed . A Reset is required." };
+                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor has STOPed . A Reset is required.", ExceptionType = ExceptionType.Error };
                 bus?.Publish(e);
+                return;
             }
-            else
+
+            if (waiAsserted)
             {
-                if (irqQueue.Count > 0)
-                {
-                    HandleInterupt();
-                }
-                Execute();
+                var e = new ExceptionEventArg() { ErrorMessage = $"Proccessor is suspended and WAIting for interupt.",ExceptionType = ExceptionType.Warning };
+                bus?.Publish(e);
+                return;
             }
+
+            if (irqQueue.Count > 0)
+            {
+                HandleInterupt();
+            }
+            Execute();
         }
         
         private void Execute()
@@ -196,7 +201,7 @@ namespace W65C02S.CPU
             }
             currentInstruction.AddressModeAction();
             currentInstruction.InstructionAction();
-            clockTicks += currentInstruction.Length;
+            clockTicks += currentInstruction.ClockCycles;
         }
 
         private void IncrementPC(sbyte amount = 1)
@@ -274,7 +279,6 @@ namespace W65C02S.CPU
             };
             bus?.Publish(arg);
             fetchedByte = arg.Data;
-            clockTicks++;
         }
 
         private void WriteValueToAddress(ushort address, byte data)
@@ -286,7 +290,6 @@ namespace W65C02S.CPU
                 Data = data
             };
             bus?.Publish(arg);
-            clockTicks++;
         }
 
         private void RaiseInstructionExecuting()
@@ -335,7 +338,8 @@ namespace W65C02S.CPU
             try
             {
                 var intrupt = irqQueue.Peek();
-                
+                waiAsserted = false;
+
                 if (intrupt.InteruptType == InteruptType.IRQ)
                 {
                     if (!IsFlagSet(ProcessorFlags.I)) // only process IRQ interupts if the irq flag is clear (0)
@@ -380,12 +384,10 @@ namespace W65C02S.CPU
             PC = IRQ_Vect;
             ReadValueFromAddress(PC);
             var lo = fetchedByte;
-            clockTicks++;
 
             PC++;
             ReadValueFromAddress(PC);
             var hi = fetchedByte;
-            clockTicks++;
 
             PC = (ushort)((hi << 8) | lo);
 
@@ -429,12 +431,10 @@ namespace W65C02S.CPU
             PC = NMI_Vect;
             ReadValueFromAddress(PC);
             var lo = fetchedByte;
-            clockTicks++;
 
             PC++;
             ReadValueFromAddress(PC);
             var hi = fetchedByte;
-            clockTicks++;
 
             PC = (ushort)((hi << 8) | lo);
 

@@ -21,7 +21,7 @@ namespace W65C02.API.Models
         public string FlagsAffected { get; set; }
         public string OperationDescription { get; set; }
 
-
+        public byte ClockCycles { get; set; }
 
     }
 }

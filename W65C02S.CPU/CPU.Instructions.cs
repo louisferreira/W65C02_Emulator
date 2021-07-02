@@ -340,60 +340,55 @@ namespace W65C02S.CPU
             IncrementPC(amount);
         }
 
-        // BReaK instruction
+        // BReaK instruction - forces an interupt to occur from code
         private void BRK()
         {
-            if (!IsFlagSet(ProcessorFlags.I))
+            // save return address to stack, hi byte first then lo byte
+            var retAddr = (PC + currentInstruction.Length);
+            WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
+            DecreaseSP();
+
+            WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
+            DecreaseSP();
+
+            // set the software interupt flag to indicate a break 
+            SetFlag(ProcessorFlags.B, true);
+
+            // save the Processor Flags to stack
+            WriteValueToAddress(SP, (byte)ST);
+            DecreaseSP();
+
+            // disable further interupts
+            //SetFlag(ProcessorFlags.I, true); // ??
+
+            // CMOS version also clears the decimal flag
+            SetFlag(ProcessorFlags.D, false);
+
+            // set the PC to the IRQ vector
+            PC = IRQ_Vect;
+            ReadValueFromAddress(PC);
+            var lo = fetchedByte;
+
+            PC++;
+            ReadValueFromAddress(PC);
+            var hi = fetchedByte;
+
+            PC = (ushort)((hi << 8) | lo);
+
+            var arg = new OnInstructionExecutedEventArg
             {
-                // save return address to stack, hi byte first then lo byte
-                var retAddr = (PC + currentInstruction.Length);
-                WriteValueToAddress(SP, (byte)(retAddr >> 8)); // hi byte
-                DecreaseSP();
-
-                WriteValueToAddress(SP, (byte)(retAddr)); // lo byte
-                DecreaseSP();
-
-                // set the software interupt flag to indicate a break 
-                SetFlag(ProcessorFlags.B, true);
-                
-                // save the Processor Flags to stack
-                WriteValueToAddress(SP, (byte)ST);
-                DecreaseSP();
-
-                // disable further interupts
-                SetFlag(ProcessorFlags.I, true);
-
-                // CMOS version also clears the decimal flag
-                SetFlag(ProcessorFlags.D, false);
-
-                // set the PC to the IRQ vector
-                PC = IRQ_Vect;
-                ReadValueFromAddress(PC);
-                var lo = fetchedByte;
-                clockTicks++;
-
-                PC++;
-                ReadValueFromAddress(PC);
-                var hi = fetchedByte;
-                clockTicks++;
-
-                PC = (ushort)((hi << 8) | lo);
-
-                var arg = new OnInstructionExecutedEventArg
-                {
-                    CurrentInstruction = currentInstruction,
-                    DecodedInstruction = "Software Interupt (BRK)",
-                    A = A,
-                    X = X,
-                    Y = Y,
-                    PC = PC,
-                    SP = SP,
-                    ST = ST,
-                    RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
-                    ClockTicks = clockTicks
-                };
-                bus?.Publish(arg);
-            }
+                CurrentInstruction = currentInstruction,
+                DecodedInstruction = "Software Interupt (BRK)",
+                A = A,
+                X = X,
+                Y = Y,
+                PC = PC,
+                SP = SP,
+                ST = ST,
+                RawData = $"{currentInstruction.OpCode:X2} {currentInstruction.Operand1:X2} {currentInstruction.Operand2:X2}".TrimEnd(),
+                ClockTicks = clockTicks
+            };
+            bus?.Publish(arg);
 
         }
 
@@ -1202,9 +1197,8 @@ namespace W65C02S.CPU
         // WAit for Interrupt
         private void WAI()
         {
-            stopCmdAsserted = true;
-            SetFlag(ProcessorFlags.B, true);
-            IncrementPC(currentInstruction.Length);
+            waiAsserted = true;
+            //IncrementPC(currentInstruction.Length);
         }
     }
 }
